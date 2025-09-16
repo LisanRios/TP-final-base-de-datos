@@ -1,0 +1,12 @@
+pandas
+numpy
+scikit-learn
+statsmodels
+matplotlib
+plotly
+openpyxl
+xlsxwriter
+reportlab
+prophet
+torch
+tensorflow
