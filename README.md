@@ -1,109 +1,106 @@
-# TP Final Base de Datos.
 
-# Resumen
+# TP Final Base de Datos
 
-*Una pagina web que recibe preguntas de contexto empresarial/financiera y devuelve: series temporales, indicadores técnicos y fundamentales, análisis estadístico y una recomendación generada por IA. El sistema combina ingestión de datos (APIs / scraping), almacenamiento flexible (NoSQL preferido), procesamiento estadístico/ML y una capa de personalización basada en vectores (historial de la conversación / chat).*
+## Descripción General
 
-# Objetivos
+Plataforma web inteligente para análisis financiero y empresarial. Permite consultas en lenguaje natural y genera informes estructurados con series temporales, indicadores técnicos y fundamentales, análisis estadístico y recomendaciones basadas en IA. Integra ingestión de datos (APIs/web scraping), almacenamiento flexible (NoSQL), procesamiento estadístico/ML y personalización por contexto conversacional.
 
-- Entregar respuestas interpretables y accionables sobre instrumentos financieros.
-- Soportar datos heterogéneos (acciones, criptos, FX, startups).
-- Permitir extensibilidad: nuevos parámetros, nuevas fuentes y nuevos modelos.
+## Objetivos
 
-# Alcance
+- Proveer respuestas interpretables y accionables sobre instrumentos financieros.
+- Soportar datos heterogéneos: acciones, criptomonedas, divisas (FX), startups, entre otros.
+- Facilitar la extensibilidad para incorporar nuevos parámetros, fuentes y modelos.
 
-- Inputs: consultas en lenguaje natural (ej.: "¿Cuál es la mejor empresa para invertir ahora?").
-- Outputs: informe estructurado con datos en tiempo real/históricos, indicadores técnicos, métricas de riesgo, y recomendación con justificación.
-- Integraciones previstas: APIs de mercado, web scraping como fallback, motores de embeddings, y (opcional) integración Python + ML (MATE 3 — confirmar con el equipo).
+## Alcance
 
-# Flujo de funcionamiento (alto nivel)
+- **Entradas:** Consultas en lenguaje natural (ejemplo: “¿Cuál es la mejor empresa para invertir ahora?”).
+- **Salidas:** Informes estructurados con datos en tiempo real e históricos, indicadores técnicos, métricas de riesgo y recomendaciones justificadas.
+- **Integraciones:** APIs de mercado, web scraping como respaldo, motores de embeddings y (opcional) integración con Python + ML.
 
-1. Recepción del input (chat / query API).
-2. Preprocesamiento / vectorización de la consulta (API#1) para detectar intención y entidades.
-3. Búsqueda en la BD local (si existe historial/datos ya ingestados).
-4. Si faltan datos → pipeline de ingestión: API externa → store / o web scraping → store.
-5. Cálculos: estadísticas, indicadores técnicos, modelos de ML/serie temporal.
-6. Generación de informe (plantilla + explicación) por API#2 (puede ser un LLM controlador).
-7. Personalización: re-rank o adaptar lenguaje según perfil del usuario (vectores / historial).
+## Flujo de Funcionamiento
+
+1. Recepción de la consulta (chat o API).
+2. Preprocesamiento y vectorización para detectar intención y entidades.
+3. Búsqueda en la base de datos local (si existe historial o datos previos).
+4. Ingesta de datos externos en caso de ser necesario (API/web scraping).
+5. Cálculo de estadísticas, indicadores técnicos y modelos de ML/series temporales.
+6. Generación del informe mediante plantilla y explicación (posible uso de LLM).
+7. Personalización de la respuesta según el contexto conversacional.
 8. Entrega al usuario y almacenamiento del intercambio para aprendizaje futuro.
 
-# Ejemplo de ejecución (paso a paso)
+## Ejemplo de Ejecución
 
-Input: ¿Cuál es la mejor empresa para invertir **ahora**?
+**Consulta:** ¿Cuál es la mejor empresa para invertir ahora?
 
-- A) Vectorizamos la pregunta → detectamos: horizonte ("ahora" -> corto plazo), activo: empresa (si no indicada, pedir aclaración o usar top picks).
-- B) Consultamos BD: precios, volumen, indicadores técnicos, noticias relevantes.
-- C) Si falta info: obtenemos datos externos y los persistimos.
-- D) Ejecutamos cálculos (RSI, MACD, medias móviles, volatilidad, VaR simple, correlaciones).
-- E) LLM monta el informe (resumen numérico + gráfico + conclusión y nivel de confianza).
+- Vectorización de la pregunta para identificar horizonte temporal y tipo de activo.
+- Consulta a la base de datos: precios, volumen, indicadores técnicos, noticias relevantes.
+- Ingesta de datos externos si la información es insuficiente.
+- Ejecución de cálculos: RSI, MACD, medias móviles, volatilidad, VaR, correlaciones.
+- Generación de informe con resumen numérico, gráfico, conclusión y nivel de confianza.
 
-# Diseño de almacenamiento
+## Diseño de Almacenamiento
 
-**Recomendación primaria: NoSQL + motor de vectores** (por flexibilidad y velocidad para documento/serie y metadatos).
+**Recomendación:** Base de datos NoSQL + motor de vectores para flexibilidad y velocidad.
 
-**Esquema sugerido (NoSQL — “”ORIENTATIVO””):**
-
+**Esquema sugerido:**
 - id
-- tipo (accion/crypto/fx/startup/etc.)
-- fuente (link/s)
+- tipo (acción, cripto, FX, startup, etc.)
+- fuente (enlaces)
 - series (timestamp, open, high, low, close, volume)
-- indicadores (objeto JSON con RSI, MACD, MA, ATR, etc.)
+- indicadores (RSI, MACD, MA, ATR, etc.)
 - pivot_points
 - technical_analysis.summary
 - metadata (sector, país, ticker, ISIN)
-- embeddings (vector para búsqueda semántica)
+- embeddings (vector semántico)
 - ingesta.timestamp
-- quality_flags (missing_data, source_reliability)
+- quality_flags (datos faltantes, confiabilidad de fuente)
 
-# Vectorización y personalización
+## Vectorización y Personalización
 
-- Mantener un motor de embeddings (FAISS / Milvus / Pinecone) con representaciones de:
-    - preguntas dentro de cada chat/conversación (snapshot del contexto)
-    - documentos de análisis
-    - snapshots de conversaciones relevantes (no perfiles persistentes)
-- Importante: los embeddings **se indexan por conversación/chat**, no por perfil de usuario. Cada hilo tendrá su propio historial semántico y contexto, evitando mezclar intereses entre distintas conversaciones.
-- Re-rankear respuestas según similitud de embedding entre la **consulta y el estado actual del chat** para adaptar la respuesta al contexto conversacional.
+- Motor de embeddings (FAISS, Milvus, Pinecone) para:
+    - Consultas y contexto conversacional.
+    - Documentos de análisis.
+    - Historial semántico por conversación.
+- Las respuestas se re-ranquean según la similitud de embeddings entre la consulta y el estado actual del chat.
 
-# Generación de reportes y gráficos
+## Generación de Reportes y Gráficos
 
-- El sistema debe poder generar:
-    - Gráficos interactivos y estáticos (series de precio, indicadores, correlaciones).
-    - Reportes descargables en PDF y XLSX con tablas, gráficos y notas explicativas.
-- Tecnologías sugeridas: matplotlib / plotly para gráficos, pandas / openpyxl / xlsxwriter para XLSX, ReportLab / wkhtmltopdf / WeasyPrint para PDFs.
-- Flujo: generar la visualización en el backend, incrustar en el informe, exportar a PDF/XLSX y ofrecer descarga o envío por email.
-- Guardar una copia del reporte en la BD (metadatos: versión del modelo, fecha, parámetros usados) para trazabilidad.
+- Gráficos interactivos y estáticos (series de precios, indicadores, correlaciones).
+- Reportes descargables en PDF y XLSX con tablas, gráficos y notas explicativas.
+- Tecnologías recomendadas: matplotlib, plotly, pandas, openpyxl, xlsxwriter, ReportLab, wkhtmltopdf, WeasyPrint.
+- Flujo: generación en backend, incrustación en informe, exportación y almacenamiento para trazabilidad.
 
-# Consideraciones ML / IA
+## Consideraciones de ML/IA
 
-- Modelos de series temporales: ARIMA/Prophet/LSTM/Transformers según horizonte y calidad de datos.
-- Modelos explicables y límites claros: siempre proveer la razón y grado de confianza de la recomendación.
-- Integración con Python + MATE 3: confirmar compatibilidad, recursos (GPU/CPU), y cómo desplegar (batch vs real‑time).
+- Modelos de series temporales: ARIMA, Prophet, LSTM, Transformers según horizonte y calidad de datos.
+- Modelos explicables: siempre incluir justificación y grado de confianza.
+- Integración con Python + MATE 3: confirmar compatibilidad y recursos disponibles.
 
-# Trazabilidad y auditoría
+## Trazabilidad y Auditoría
 
-- Mantener ingestion_logs y decision_logs (qué datos usó la IA para cada recomendación).
-- Guardar versión de modelo y parámetros usados en cada informe.
+- Mantener ingestion_logs y decision_logs para registrar datos utilizados en cada recomendación.
+- Guardar versión de modelo y parámetros en cada informe.
 
-# Requerimientos no funcionales
+## Requerimientos No Funcionales
 
-- Latencia objetivo para consulta simple: < 2s (si datos en cache / BD local).
-- Jobs ETL diarios/horarios para sincronizar fuentes externas.
-- Monitorización de calidad de datos y alertas (missing data, drift).
+- Latencia objetivo para consultas simples: < 2 segundos (con datos en caché/BD local).
+- Jobs ETL periódicos para sincronización de fuentes externas.
+- Monitorización de calidad de datos y alertas (datos faltantes, drift).
 
-# Tecnologías sugeridas (orientativo)
+## Tecnologías Sugeridas
 
-- BD NoSQL: MongoDB.
-- Vector DB: FAISS / Milvus / Pinecone (a ver).
-- Entorno: node.js (react, typescript).
-- ML: Python (scikit‑learn, statsmodels, pytorch/TF si hay modelos deep learning).
-- Frontend: microservicio REST/GraphQL, dashboard con gráficos (Plotly, Recharts, etc.).
-- Deploy: Vercel / firebase / hostinger
+- Base de datos NoSQL: MongoDB.
+- Vector DB: FAISS, Milvus, Pinecone.
+- Backend: Node.js (TypeScript).
+- ML: Python (scikit-learn, statsmodels, PyTorch, TensorFlow).
+- Frontend: Microservicio REST/GraphQL, dashboard con gráficos (Plotly, Recharts).
+- Deploy: Vercel, Firebase, Hostinger.
 
-# OPCIONALES
+## Opcionales
 
-- **Entrenar una red neuronal propia**: construir modelos de series temporales (Transformers / LSTM) para predicción interna y no depender completamente de APIs externas.
-- **Entrenar/desplegar un modelo de lenguaje propio**: investigar fine‑tuning o entrenamiento desde cero de un LLM para generar informes y respuestas sin depender de servicios externos. Esto requiere datasets, infraestructura y controles de seguridad.
-- **Infraestructura propuesta**: cluster de entrenamiento (GPUs/TPUs), sistema de versiones de modelos (MLflow / DVC), pipeline de MLOps para despliegue y monitorización.
-- **Pros/Contras**: mayor control y privacidad vs coste y complejidad operativa. Definir roadmap y presupuesto antes de comprometer recursos.
+- Entrenamiento de modelos propios de series temporales (Transformers/LSTM).
+- Fine-tuning o entrenamiento de LLM para generación de informes y respuestas.
+- Infraestructura: cluster de entrenamiento (GPU/TPU), versionado de modelos (MLflow/DVC), pipeline de MLOps.
+- Evaluar pros/contras: mayor control y privacidad vs coste y complejidad operativa.
 
 [tablero](https://www.notion.so/263aabf0ff7280dc8217c381c8a95c7b?pvs=21)
