@@ -1,0 +1,9 @@
+# dependencias
+/node_modules
+
+# archivos de salida de la compilación
+/build
+/dist
+
+# variables de entorno locales
+.env
