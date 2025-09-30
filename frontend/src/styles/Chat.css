@@ -1,0 +1,35 @@
+.chat-app-container {
+    width: 95vw;
+    max-width: 900px;
+    height: 95vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #1f2937; 
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+
+/* Scrollbar personalizado para navegadores basados en Webkit */
+.chat-messages {
+    flex: 1; 
+    overflow-y: auto;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+}
+
+.chat-messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+    background: #1f2937; 
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: #4f46e5; 
+    border-radius: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+    background: #6366f1; 
+}
