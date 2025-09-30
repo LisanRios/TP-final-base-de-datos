@@ -10,3 +10,5 @@ reportlab
 prophet
 torch
 tensorflow
+openai
+streamlit
