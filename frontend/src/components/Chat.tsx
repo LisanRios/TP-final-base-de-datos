@@ -1,18 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import RenderReport from './RenderReport.tsx';
 import TypingIndicator from './TypingIndicator.tsx';
-import { fetchFinancialReport } from '../services/geminiApi.ts'; 
+import { fetchChatResponse } from '../services/geminiApi.ts'; 
 import '../styles/Chat.css'; 
 
 // Definición de tipos para el estado 'messages'
 type Message = {
-    content: string | object; 
+    content: string; 
     sender: 'user' | 'bot';
-    isReport: boolean;
 };
 
 /**
- * Componente principal del Chat Financiero que maneja la lógica de mensajes.
+ * Componente principal del Chat que maneja la lógica de mensajes.
  */
 const Chat = () => {
     // Tipado explícito: 'Message[]'
@@ -32,12 +30,11 @@ const Chat = () => {
 
     /**
      * Añade un mensaje al historial.
-     * @param {string|object} content Contenido del mensaje.
+     * @param {string} content Contenido del mensaje.
      * @param {'user'|'bot'} sender Quién envía el mensaje.
-     * @param {boolean} isReport Indica si el contenido es un reporte estructurado.
      */
-    const addMessage = (content: Message['content'], sender: Message['sender'], isReport = false) => {
-        setMessages(prev => [...prev, { content, sender, isReport }]);
+    const addMessage = (content: string, sender: 'user' | 'bot') => {
+        setMessages(prev => [...prev, { content, sender }]);
     };
 
     const sendMessage = async () => {
@@ -50,15 +47,15 @@ const Chat = () => {
         setIsLoading(true);
 
         try {
-            // 2. Llamada simulada al backend/API
-            const report = await fetchFinancialReport(textTrimmed);
+            // 2. Llamada al backend
+            const { response } = await fetchChatResponse(textTrimmed);
             
-            // 3. Mostrar el reporte estructurado de la IA
-            addMessage(report, "bot", true); 
+            // 3. Mostrar la respuesta de la IA
+            addMessage(response, "bot"); 
 
         } catch (error) {
             console.error("Error en la solicitud:", error);
-            addMessage("Lo sentimos, ocurrió un error en el motor de análisis. Intenta de nuevo.", "bot", false);
+            addMessage("Lo sentimos, ocurrió un error. Intenta de nuevo.", "bot");
         } finally {
             setIsLoading(false);
         }
@@ -69,78 +66,84 @@ const Chat = () => {
     };
 
     return (
-        <div className="flex justify-center items-center h-screen bg-gray-900 font-inter">
-            <div className="chat-container w-[95vw] max-w-[900px] h-[95vh] flex flex-col bg-gray-800 rounded-2xl shadow-2xl overflow-hidden border border-indigo-700">
-                
-                {/* Header */}
-                <header className="p-4 bg-gray-700 border-b border-indigo-600 flex justify-between items-center">
-                    <h1 className="text-xl font-bold text-white flex items-center">
-                        <svg className="w-6 h-6 mr-2 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0h5m-5 0a2 2 0 002 2h2a2 2 0 002-2m-5 0v-6a2 2 0 012-2h2a2 2 0 012 2v6m-2-2h4"></path></svg>
-                        Asistente Financiero IA
-                    </h1>
-                    <span className="text-sm text-gray-400 hidden sm:block">TP Final: Diseño de Interfaz</span>
-                </header>
+        <div className="flex flex-col h-full bg-gray-100">
+            {/* Header minimalista */}
+            <header className="bg-white shadow-sm border-b border-gray-200 p-4 flex items-center justify-center">
+                <h1 className="text-lg font-semibold text-gray-800">Asistente Financiero IA</h1>
+            </header>
 
-                {/* Historial de Mensajes */}
-                <div className="flex-1 p-6 space-y-5 overflow-y-auto chat-messages" ref={chatRef}>
-                    {/* Mensaje de bienvenida */}
-                    {messages.length === 0 && (
-                        <div className="flex justify-start">
-                            <div className="p-3 rounded-xl rounded-tl-none bg-indigo-600 text-white max-w-lg shadow-md">
-                                <p className="font-semibold">¡Bienvenido! Soy tu Asistente Financiero.</p>
-                                <p className="text-sm mt-1">Pregúntame sobre cualquier activo (ej: **Bitcoin**, **acciones de Tesla**). Generaré un informe con análisis técnico, riesgo y una recomendación.</p>
-                                <p className="text-xs mt-2 opacity-80">Simulación del pipeline: $\text{2-3}$ segundos de latencia.</p>
-                            </div>
+            {/* Área de mensajes */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={chatRef}>
+                {/* Mensaje de bienvenida */}
+                {messages.length === 0 && (
+                    <div className="flex justify-center">
+                        <div className="bg-blue-500 text-white px-4 py-2 rounded-lg max-w-xs text-center">
+                            <p className="font-medium">¡Hola! Soy tu Asistente Financiero IA.</p>
+                            <p className="text-sm mt-1">Pregúntame sobre análisis financiero, inversiones, etc.</p>
                         </div>
-                    )}
+                    </div>
+                )}
 
-                    {messages.map((msg, i) => (
-                        <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            {msg.isReport && msg.sender === 'bot' ? (
-                                <RenderReport report={msg.content} />
-                            ) : (
-                                <div className={`p-3 rounded-xl shadow-lg max-w-xl ${
-                                    msg.sender === 'user' 
-                                        ? 'bg-blue-500 text-white rounded-br-none' 
-                                        : 'bg-gray-700 text-gray-100 rounded-tl-none'
-                                }`}>
-                                    {msg.content as string} {/* Casting a string para mensajes de texto */}
+                {messages.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`flex items-end space-x-2 max-w-xs lg:max-w-md`}>
+                            {msg.sender === 'bot' && (
+                                <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                    AI
+                                </div>
+                            )}
+                            <div className={`px-4 py-2 rounded-2xl ${
+                                msg.sender === 'user'
+                                    ? 'bg-blue-500 text-white rounded-br-md'
+                                    : 'bg-white text-gray-800 rounded-bl-md shadow-sm'
+                            }`}>
+                                <p className="text-sm">{msg.content}</p>
+                            </div>
+                            {msg.sender === 'user' && (
+                                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                    Tú
                                 </div>
                             )}
                         </div>
-                    ))}
-                    
-                    {/* Indicador de carga */}
-                    {isLoading && (
-                        <div className="flex justify-start">
-                            <div className="bg-gray-700 p-3 rounded-xl rounded-tl-none shadow-lg">
+                    </div>
+                ))}
+
+                {/* Indicador de carga */}
+                {isLoading && (
+                    <div className="flex justify-start">
+                        <div className="flex items-end space-x-2">
+                            <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                AI
+                            </div>
+                            <div className="bg-white px-4 py-2 rounded-2xl rounded-bl-md shadow-sm">
                                 <TypingIndicator />
                             </div>
                         </div>
-                    )}
-                </div>
-
-                {/* Área de Input */}
-                <div className="p-4 border-t border-gray-700 bg-gray-800">
-                    <div className="flex space-x-3">
-                        <input
-                            type="text"
-                            id="user-input"
-                            placeholder={isLoading ? "Procesando solicitud..." : "Escribe tu consulta financiera..."}
-                            value={input}
-                            onChange={e => setInput(e.target.value)}
-                            onKeyPress={handleKeyPress}
-                            disabled={isLoading}
-                            className="flex-1 p-3 border border-gray-600 bg-gray-700 text-white rounded-full focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-400 transition duration-150"
-                        />
-                        <button
-                            onClick={sendMessage}
-                            disabled={isLoading || !input.trim()}
-                            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-full hover:bg-indigo-700 transition duration-150 ease-in-out shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isLoading ? '...' : 'Analizar'}
-                        </button>
                     </div>
+                )}
+            </div>
+
+            {/* Área de input fija abajo */}
+            <div className="bg-white border-t border-gray-200 p-4">
+                <div className="flex items-center space-x-3">
+                    <input
+                        type="text"
+                        placeholder={isLoading ? "Pensando..." : "Escribe un mensaje..."}
+                        value={input}
+                        onChange={e => setInput(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        disabled={isLoading}
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button
+                        onClick={sendMessage}
+                        disabled={isLoading || !input.trim()}
+                        className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                        </svg>
+                    </button>
                 </div>
             </div>
         </div>

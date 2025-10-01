@@ -1,4 +1,5 @@
 import React from 'react';
+import Sidebar from './components/Sidebar.tsx';
 import Chat from './components/Chat.tsx';
 
 /**
@@ -6,9 +7,11 @@ import Chat from './components/Chat.tsx';
  */
 function App() {
   return (
-    // Estilos de Tailwind para la aplicación
-    <div className="min-h-screen bg-gray-900">
-      <Chat />
+    <div className="flex h-screen bg-gray-100">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <Chat />
+      </div>
     </div>
   );
 }

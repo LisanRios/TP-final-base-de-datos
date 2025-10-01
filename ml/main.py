@@ -7,9 +7,14 @@ import os
 from openai import OpenAI
 
 # Configurar cliente OpenAI
+api_key = os.getenv("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")
+if not api_key:
+    st.error("Por favor, configura la variable de entorno OPENROUTER_API_KEY con tu clave API de OpenRouter.")
+    st.stop()
+
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key="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",
+    api_key=api_key,
 )
 
 # Inicializar mensajes en session_state si no existe
@@ -52,4 +57,4 @@ if st.button("Enviar"):
         st.rerun()
 
 # Nota de seguridad
-st.warning("Nota: La API key está hardcodeada. En producción, usa variables de entorno.")
+st.info("La aplicación usa la variable de entorno OPENROUTER_API_KEY para la autenticación.")
