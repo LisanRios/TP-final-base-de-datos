@@ -19,12 +19,19 @@ const Chat = () => {
     const [isLoading, setIsLoading] = useState(false);
     // Tipado explícito: 'HTMLDivElement' para acceder a scroll properties
     const chatRef = useRef<HTMLDivElement>(null); 
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Mantiene el scroll abajo al añadir nuevos mensajes
     useEffect(() => {
-        if (chatRef.current) {
-            // TypeScript ahora sabe que chatRef.current es un HTMLDivElement
-            chatRef.current.scrollTop = chatRef.current.scrollHeight; 
+        const chat = chatRef.current;
+        if (!chat) return;
+
+        // Detecta si el usuario está cerca del final
+        const isAtBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 50;
+
+        if (isAtBottom && messagesEndRef.current) {
+            // Hace scroll hacia el último mensaje
+            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages]);
 
@@ -47,104 +54,91 @@ const Chat = () => {
         setIsLoading(true);
 
         try {
-            // 2. Llamada al backend
+            // 2. Llamar a la API (se asume que existe la función y trae un string de respuesta)
             const { response } = await fetchChatResponse(textTrimmed);
             
-            // 3. Mostrar la respuesta de la IA
+            // 3. Mostrar la respuesta del bot
             addMessage(response, "bot"); 
 
         } catch (error) {
-            console.error("Error en la solicitud:", error);
-            addMessage("Lo sentimos, ocurrió un error. Intenta de nuevo.", "bot");
-        } finally {
+            console.error("Error al obtener respuesta de la IA:", error);
+            const errorMessage = (error as Error).message;
+            
+            if (errorMessage === "Consulta fuera de contexto financiero.") {
+                addMessage("Disculpa, mi función principal es el **Análisis Financiero**. Por favor, hazme preguntas relacionadas con este tema (inversión, presupuesto, ratios, etc.).", 'bot');
+            } else {
+                addMessage("Lo siento, hubo un error de conexión inesperado. Inténtalo de nuevo.", 'bot');
+            }        } finally {
             setIsLoading(false);
         }
     };
 
+    /**
+     * Maneja el envío con la tecla Enter.
+     */
     const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Enter" && !isLoading) sendMessage();
     };
 
     return (
-        <div className="flex flex-col h-full bg-gray-100">
+        <div className="flex-col min-h-0 bg-[#0F172A] w-full">
             {/* Header minimalista */}
-            <header className="bg-white shadow-sm border-b border-gray-200 p-4 flex items-center justify-center">
-                <h1 className="text-lg font-semibold text-gray-800">Asistente Financiero IA</h1>
+            <header className="p-4 bg-[#1F2937] border-b border-[#374151] text-white shadow-xl z-10">
+                <h1 className="text-xl font-semibold">Asistente IA Financiero</h1>
             </header>
 
             {/* Área de mensajes */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={chatRef}>
+            <div 
+            ref={chatRef} 
+            className="chat-messages flex-1 overflow-y-auto p-4 space-y-4" 
+            style={{ scrollBehavior: 'smooth' }}
+            >
                 {/* Mensaje de bienvenida */}
                 {messages.length === 0 && (
-                    <div className="flex justify-center">
-                        <div className="bg-blue-500 text-white px-4 py-2 rounded-lg max-w-xs text-center">
-                            <p className="font-medium">¡Hola! Soy tu Asistente Financiero IA.</p>
-                            <p className="text-sm mt-1">Pregúntame sobre análisis financiero, inversiones, etc.</p>
+                    <div className="flex justify-center items-center h-full">
+                        <div className="text-center p-6 rounded-xl bg-indigo-600 text-white shadow-2xl max-w-sm">
+                            <p className="text-xl font-bold mb-2">¡Hola! Soy tu Asistente Financiero IA.</p>
+                            <p className="text-sm">Pregúntame sobre análisis financiero, inversiones, etc.</p>
                         </div>
                     </div>
                 )}
 
                 {messages.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`flex items-end space-x-2 max-w-xs lg:max-w-md`}>
-                            {msg.sender === 'bot' && (
-                                <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                                    AI
-                                </div>
-                            )}
-                            <div className={`px-4 py-2 rounded-2xl ${
-                                msg.sender === 'user'
-                                    ? 'bg-blue-500 text-white rounded-br-md'
-                                    : 'bg-white text-gray-800 rounded-bl-md shadow-sm'
-                            }`}>
-                                <p className="text-sm">{msg.content}</p>
-                            </div>
-                            {msg.sender === 'user' && (
-                                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                                    Tú
-                                </div>
-                            )}
+                    <div key={i} className={`message-wrapper ${msg.sender}`}>
+                        <div className="message-bubble">
+                            <p>{msg.content}</p>
                         </div>
                     </div>
                 ))}
 
+                <div ref={messagesEndRef}></div>
+
                 {/* Indicador de carga */}
                 {isLoading && (
-                    <div className="flex justify-start">
-                        <div className="flex items-end space-x-2">
-                            <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                                AI
-                            </div>
-                            <div className="bg-white px-4 py-2 rounded-2xl rounded-bl-md shadow-sm">
-                                <TypingIndicator />
-                            </div>
+                    <div className="message-wrapper bot">
+                        <div className="message-bubble typing">
+                            <TypingIndicator />
                         </div>
                     </div>
                 )}
             </div>
 
             {/* Área de input fija abajo */}
-            <div className="bg-white border-t border-gray-200 p-4">
-                <div className="flex items-center space-x-3">
-                    <input
-                        type="text"
-                        placeholder={isLoading ? "Pensando..." : "Escribe un mensaje..."}
-                        value={input}
-                        onChange={e => setInput(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        disabled={isLoading}
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <button
-                        onClick={sendMessage}
-                        disabled={isLoading || !input.trim()}
-                        className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-                        </svg>
-                    </button>
-                </div>
+            <div className="chat-input-wrapper">
+                <input
+                    type="text"
+                    placeholder={isLoading ? "Pensando..." : "Escribe un mensaje..."}
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    disabled={isLoading}
+                />
+                <button
+                    onClick={sendMessage}
+                    disabled={isLoading || !input.trim()}
+                >
+                    Enviar
+                </button>
             </div>
         </div>
     );
