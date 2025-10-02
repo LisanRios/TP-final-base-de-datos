@@ -1,47 +1,37 @@
 import React from 'react';
+import '../styles/Sidebar.css';
 
-/**
- * Componente Sidebar para navegación y opciones.
- */
-const Sidebar = () => {
+type SidebarProps = {
+  isOpen: boolean; // Recibimos si el sidebar está abierto o cerrado
+};
+
+const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
   return (
-    <div className="w-64 bg-[#1F2937] text-white flex flex-col shadow-2xl">
-      {/* Logo/Header */}
-      <div className="p-4 border-b border-[#374151]">
-        <h2 className="text-xl font-bold">TP Final BD</h2>
-        <p className="text-sm text-gray-300">Análisis Financiero</p>
-      </div>
+    <div className={`sidebar ${isOpen ? 'open' : ''}`}>
+      {isOpen && (
+        <>
+          {/* Header del sidebar */}
+          <div className="sidebar-header">
+            <h2>TP Final BD</h2>
+            <p className="sidebar-subtitle">Análisis Financiero</p>
+          </div>
 
-      {/* Navegación */}
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          <li>
-            <a href="#" className="block px-4 py-2 rounded text-gray-100 hover:bg-[#374151] transition-colors duration-200">
-              💬 Chat IA
-            </a>
-          </li>
-          <li>
-            <a href="#" className="block px-4 py-2 rounded text-gray-100 hover:bg-[#374151] transition-colors duration-200">
-              📊 Dashboards
-            </a>
-          </li>
-          <li>
-            <a href="#" className="block px-4 py-2 rounded text-gray-100 hover:bg-[#374151] transition-colors duration-200">
-              📄 Reportes
-            </a>
-          </li>
-          <li>
-            <a href="#" className="block px-4 py-2 rounded text-gray-100 hover:bg-[#374151] transition-colors duration-200">
-              🤖 ML Modelos
-            </a>
-          </li>
-        </ul>
-      </nav>
+          {/* Navegación con enlaces */}
+          <nav className="sidebar-nav">
+            <ul>
+              <li>💬 Chat IA</li>
+              <li>📊 Dashboards</li>
+              <li>📄 Reportes</li>
+              <li>🤖 ML Modelos</li>
+            </ul>
+          </nav>
 
-      {/* Footer */}
-      <div className="p-4 text-xs text-gray-500 border-t border-[#374151]">
-        <p className="text-gray-400">© 2024 TP Final BD. Versión 1.0</p>
-      </div>
+          {/* Footer del sidebar */}
+          <div className="sidebar-footer">
+            © 2024 TP Final BD. Versión 1.0
+          </div>
+        </>
+      )}
     </div>
   );
 };

@@ -10,6 +10,6 @@ html, body, #root {
 
 #root {
     background-image: radial-gradient(at 20% 80%, #173b5e 0px, transparent 40%),
-                        radial-gradient(at 80% 20%, #4f46e520 0px, transparent 40%);
+                        radial-gradient(at 80% 20%, rgba(79,70,229,0.125) 0px, transparent 40%);
     background-attachment: fixed; 
 }
