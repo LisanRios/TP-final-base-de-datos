@@ -7,3 +7,9 @@ html, body, #root {
     font-family: 'Inter', sans-serif;
     background-color: #111827; /* Fondo del chat */
 }
+
+#root {
+    background-image: radial-gradient(at 20% 80%, #173b5e 0px, transparent 40%),
+                        radial-gradient(at 80% 20%, rgba(79,70,229,0.125) 0px, transparent 40%);
+    background-attachment: fixed; 
+}

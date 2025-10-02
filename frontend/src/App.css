@@ -1,0 +1,27 @@
+/* Contenedor principal de la app: sidebar + chat */
+.app-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* Contenedor del chat, ocupa todo el espacio disponible */
+.chat-container {
+    flex-grow: 1; 
+    position: relative;
+}
+
+/* Botón hamburguesa */
+.hamburger-btn {
+    position: absolute;
+    top: 0.20rem;
+    left: 0.20rem;
+    z-index: 1000;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    background-color: #4f46e5;
+    color: white;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+}
