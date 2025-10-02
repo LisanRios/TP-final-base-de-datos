@@ -20,6 +20,8 @@ const Chat = () => {
     // Tipado explícito: 'HTMLDivElement' para acceder a scroll properties
     const chatRef = useRef<HTMLDivElement>(null); 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    // Ref para el input de texto para poder hacer focus automático
+    const inputRef = useRef<HTMLInputElement>(null);
 
     // Mantiene el scroll abajo al añadir nuevos mensajes
     useEffect(() => {
@@ -34,6 +36,25 @@ const Chat = () => {
             messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages]);
+
+    // Auto-focus: después de que isLoading pase a false y haya un nuevo mensaje del bot,
+    // enfocamos el input para mejorar la experiencia de usuario.
+    useEffect(() => {
+        // Si aún está cargando, no movemos el foco
+        if (isLoading) return;
+
+        // Obtener el último mensaje
+        const last = messages[messages.length - 1];
+        if (!last) return;
+
+        // Solo enfocamos si el último mensaje proviene del bot
+        if (last.sender === 'bot' && inputRef.current) {
+            // Pequeño delay para esperar a que el input esté disponible y cualquier animación termine
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 50);
+        }
+    }, [messages, isLoading]);
 
     /**
      * Añade un mensaje al historial.
@@ -130,6 +151,7 @@ const Chat = () => {
                     placeholder={isLoading ? "Pensando..." : "Escribe un mensaje..."}
                     value={input}
                     onChange={e => setInput(e.target.value)}
+                    ref={inputRef}
                     onKeyPress={handleKeyPress}
                     disabled={isLoading}
                 />
