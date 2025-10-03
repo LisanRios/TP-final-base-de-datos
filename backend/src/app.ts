@@ -1,5 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+// Cargar variables de entorno desde backend/.env en desarrollo
+import dotenv from 'dotenv';
+dotenv.config({ path: '../.env' });
 
 const app = express();
 app.use(cors());

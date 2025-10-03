@@ -6,8 +6,12 @@ import streamlit as st
 import os
 from openai import OpenAI
 
-# Configurar cliente OpenAI
-api_key = os.getenv("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")
+# Configurar cliente OpenAI / OpenRouter
+# La API key NO debe estar hardcodeada en el código. Lee la clave desde la variable de entorno
+# OPENROUTER_API_KEY. Para desarrollo en Windows PowerShell:
+#   $env:OPENROUTER_API_KEY = "sk-or-REPLACE_WITH_YOUR_KEY"
+# Para una sesión persistente usa un archivo .env (no commitearlo) o configura el entorno del servicio.
+api_key = os.getenv("OPENROUTER_API_KEY")
 if not api_key:
     st.error("Por favor, configura la variable de entorno OPENROUTER_API_KEY con tu clave API de OpenRouter.")
     st.stop()
