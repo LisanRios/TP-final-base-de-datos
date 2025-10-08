@@ -7,6 +7,11 @@
 
 /* Contenedor del chat, ocupa todo el espacio disponible */
 .chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 98vw;
+    margin: 0;    
     flex-grow: 1; 
     position: relative;
 }
