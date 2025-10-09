@@ -5,6 +5,7 @@ html, body, #root {
     margin: 0;
     padding: 0;
     font-family: 'Inter', sans-serif;
+    font-size: 16px;
     background-color: #111827; /* Fondo del chat */
 }
 
@@ -12,4 +13,28 @@ html, body, #root {
     background-image: radial-gradient(at 20% 80%, #173b5e 0px, transparent 40%),
                         radial-gradient(at 80% 20%, rgba(79,70,229,0.125) 0px, transparent 40%);
     background-attachment: fixed; 
+}
+
+/* Chrome, Edge, Safari */
+::-webkit-scrollbar {
+    width: 0.4rem;
+}
+
+::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #0f1624;
+    border-radius: 0.5rem;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #5b626c;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #0f1624 #1f2937;
 }

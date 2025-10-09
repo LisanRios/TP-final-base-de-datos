@@ -13,8 +13,10 @@ export const LineChartComponent = ({ data }: Props) => (
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
-                <Line type="monotone" dataKey="precio" stroke="#007bff" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="price" stroke="#007bff" strokeWidth={2} dot={false} />
             </LineChart>
         </ResponsiveContainer>
     </div>
 );
+
+export default LineChartComponent;

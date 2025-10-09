@@ -18,7 +18,18 @@ export const PieChartComponent = ({ data }: Props) => (
                     nameKey="name"
                     outerRadius={100}
                     fill="#8884d8"
-                    label
+                    label={({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
+                        const RADIAN = Math.PI / 180;
+                        const radius = innerRadius + (outerRadius - innerRadius) / 2;
+                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                        return (
+                            <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central">
+                                {value}
+                            </text>
+                        );
+                    }}
+                    labelLine={false}
                 >
                     {data.map((_, index) => (
                         <Cell key={index} fill={COLORS[index % COLORS.length]} />
@@ -29,3 +40,5 @@ export const PieChartComponent = ({ data }: Props) => (
         </ResponsiveContainer>
     </div>
 );
+
+export default PieChartComponent;

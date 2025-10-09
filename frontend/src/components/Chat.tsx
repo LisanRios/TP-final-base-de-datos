@@ -1,11 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import TypingIndicator from './TypingIndicator.tsx';
 import { fetchChatResponse } from '../services/geminiApi.ts';
+import ChartWrapper from "./charts/ChartWrapper.tsx";
+import { mockLineGraph, mockBarsGraph, mockPieGraph } from "../data/mockData"; 
 import '../styles/Chat.css';
 
 type Message = {
     content: string;
     sender: 'user' | 'bot';
+    graph_type?: string;
+    data?: any;
 };
 
 const Chat = () => {
@@ -31,8 +35,8 @@ const Chat = () => {
         }
     }, [messages, isLoading]);
 
-    const addMessage = (content: string, sender: 'user' | 'bot') => {
-        setMessages(prev => [...prev, { content, sender }]);
+    const addMessage = (content: string, sender: 'user' | 'bot', graph_type?: string, data?: any) => {
+        setMessages(prev => [...prev, { content, sender, graph_type, data }]);
     };
 
     const sendMessage = async () => {
@@ -43,9 +47,40 @@ const Chat = () => {
         setInput("");
         setIsLoading(true);
 
+        if (trimmed.toLowerCase() === "/line") {
+            addMessage("Gráfico de línea generado 📈", "bot");
+            addMessage("", "bot", mockLineGraph.graph_type, mockLineGraph.data);
+            setIsLoading(false);
+            return;
+        }
+        
+        if (trimmed.toLowerCase() === "/bar") {
+            addMessage("Gráfico de barras generado 📊", "bot");
+            const barDataForChart = mockBarsGraph.data.map(d => ({ name: d.date, value: d.volume }));
+            addMessage("", "bot", mockBarsGraph.graph_type, barDataForChart);
+            setIsLoading(false);
+            return;
+        }
+        
+        if (trimmed.toLowerCase() === "/pie") {
+            addMessage("Gráfico de torta generado 🥧", "bot");
+            addMessage("", "bot", mockPieGraph.graph_type, mockPieGraph.data);
+            setIsLoading(false);
+            return;
+        }
+        
+
         try {
             const { response } = await fetchChatResponse(trimmed);
-            addMessage(response, 'bot');
+
+            const parsed = JSON.parse(response);
+
+            if (parsed.graph_type && parsed.data) {
+                addMessage(parsed.text || "", 'bot');
+                addMessage("", 'bot', parsed.graph_type, parsed.data);
+            } else {
+                addMessage(response, 'bot');
+            }
         } catch (error) {
             console.error(error);
             const msg = (error as Error).message.includes("fuera de contexto")
@@ -80,7 +115,14 @@ const Chat = () => {
                 {messages.map((msg, i) => (
                     <div key={i} className={`message-wrapper ${msg.sender}`}>
                         <div className={`message-bubble ${msg.sender}`}>
-                            <p>{msg.content}</p>
+                            {msg.content && <p>{msg.content}</p>}
+
+                            {/* Si tiene un gráfico, mostrarlo */}
+                            {msg.graph_type && msg.data && (
+                                <div className="mt-3">
+                                    <ChartWrapper type={msg.graph_type} data={msg.data} />
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
