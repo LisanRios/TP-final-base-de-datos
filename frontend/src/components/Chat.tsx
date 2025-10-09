@@ -105,7 +105,7 @@ const Chat = () => {
                     placeholder={isLoading ? "Pensando..." : "Escribe un mensaje..."}
                     value={input}
                     onChange={e => setInput(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyPress}
                     ref={inputRef}
                     disabled={isLoading}
                 />
