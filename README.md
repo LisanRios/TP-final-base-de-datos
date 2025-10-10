@@ -577,7 +577,7 @@ El frontend estará disponible en `http://localhost:3000` y el backend en `http:
 
 ## 🔗 Enlaces Útiles
 
-- [Tablero de Notion](https://www.notion.so/263aabf0ff7280dc8217c381c8a95c7b?pvs=21) - Gestión del proyecto
+- [Tablero de Trelo](https://trello.com/invite/b/68e6f8c35b9a927ce078ec43/ATTI50c34ff8dfd40f94ce01521d1e6081ee80FF862C/tp-final-bases-de-datos) - Gestión del proyecto
 - [Repositorio GitHub](https://github.com/LisanRios/TP-final-base-de-datos)
 
 ## 🤝 Contribuciones
