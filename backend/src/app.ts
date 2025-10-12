@@ -5,11 +5,29 @@ import dotenv from 'dotenv';
 import * as cheerio from "cheerio";
 dotenv.config({ path: '../.env' });
 
+async function getInvestingData(url: string): Promise<string> {
+  //Obtiene el JSON de investing
+    const data = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-requested-with': `XMLHttpRequest`
+      }
+    }).then(response => {
+      return response.text()
+    }).then(html => {
+      const $ = cheerio.load(html);
+      const next_data_json = $("#__NEXT_DATA__").text()
+      return next_data_json
+    })
+
+    return data
+}
+
+
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
 
 app.get('/', (req, res) => {
   res.send('API TP Final Base de Datos funcionando');
@@ -62,32 +80,41 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-app.get("/api/scrape", async (req, res) => {
-  try {
-    /*
-    const response = await fetch('https://www.investing.com/equities/mercadolibre-inc-historical-data', {
-      method: 'POST',
-      headers: {
-        'x-requested-with': `XMLHttpRequest`
-      }
-    });
-    let data = (await response.text()).toString()
-    */
+app.get("/api/scrape/historical", async (req, res) => {
+  if (!req.query.company) {
+    res.status(400).json({ error: 'You forgot to put your company dumbass' })
+  }
 
-    const data = await fetch('https://www.investing.com/equities/mercadolibre-inc-historical-data', {
-      method: 'POST',
-      headers: {
-        'x-requested-with': `XMLHttpRequest`
-      }
-    }).then(response => {
-      return response.text()
-    }).then(html => {
-      const $ = cheerio.load(html);
-      const next_data_json = $("#__NEXT_DATA__").text()
-      return next_data_json
-    })
+  try {
+    //Obtiene el JSON de investing
+    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
+
+    //Filtra la informacion importante
+    const historicalData = JSON.parse(data)["props"]["pageProps"]["state"]["historicalDataStore"]["historicalData"]["data"]
+    const historicalDataJson = JSON.stringify(historicalData)
     
-    res.send(data)
+    res.send(historicalDataJson)
+  }
+  catch (error){
+    console.error('Error doing scraping.', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get("/api/scrape/technical", async (req, res) => {
+  if (!req.query.company) {
+    res.status(400).json({ error: 'You forgot to put your company dumbass' })
+  }
+
+  try {
+    //Obtiene el JSON de investing
+    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
+
+    //Filtra la informacion importante
+    const technicalData = JSON.parse(data)["props"]["pageProps"]["state"]["technicalStore"]["technicalData"]
+    const technicalDataJson = JSON.stringify(technicalData)
+    
+    res.send(technicalDataJson)
   }
   catch (error){
     console.error('Error doing scraping.', error);
