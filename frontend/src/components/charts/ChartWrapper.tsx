@@ -4,25 +4,40 @@ import PieChartComponent from "./PieChartComponent";
 import CandlestickChartComponent from "./CandleStickChartComponent";
 import AreaChartComponent from "./AreaChartComponent";
 
+import {
+  normalizeLineData,
+  normalizeBarData,
+  normalizePieData,
+  normalizeCandlestickData,
+  normalizeAreaData,
+} from "../../utils/dataNormalizer";
+
 interface ChartWrapperProps {
   type: string;
   data: any;
 }
 
 const ChartWrapper: React.FC<ChartWrapperProps> = ({ type, data }) => {
+  let normalizedData;
+
   switch (type) {
     case "line":
-      return <LineChartComponent data={data} />;
+      normalizedData = normalizeLineData(data);
+      return <LineChartComponent data={normalizedData} />;
     case "bar":
-      return <BarChartComponent data={data} />;
+      normalizedData = normalizeBarData(data);
+      return <BarChartComponent data={normalizedData} />;
     case "pie":
-      return <PieChartComponent data={data} />;
+      normalizedData = normalizePieData(data);
+      return <PieChartComponent data={normalizedData} />;
     case "candlestick":
-      return <CandlestickChartComponent data={data} />;
+      normalizedData = normalizeCandlestickData(data);
+      return <CandlestickChartComponent data={normalizedData} />;
     case "area":
-      return <AreaChartComponent data={data} />;
+      normalizedData = normalizeAreaData(data);
+      return <AreaChartComponent data={normalizedData} />;
     default:
-      return <p>No hay gráfico disponible para este tipo de dato.</p>;
+      return null;
   }
 };
 
