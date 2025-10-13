@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import TypingIndicator from './TypingIndicator.tsx';
 import { fetchChatResponse } from '../services/geminiApi.ts';
 import ChartWrapper from "./charts/ChartWrapper.tsx";
-import { mockLineGraph, mockBarsGraph, mockPieGraph } from "../data/mockData"; 
+import { mockLineGraph, mockBarsGraph, mockPieGraph, mockCandlestickGraph, mockAreaGraph } from "../data/mockData"; 
 import '../styles/Chat.css';
 
 type Message = {
@@ -21,14 +21,12 @@ const Chat = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Mantener scroll al final
     useEffect(() => {
         if (messagesEndRef.current) {
             messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages, isLoading]);
 
-    // Auto-focus input después de respuesta del bot
     useEffect(() => {
         if (!isLoading && messages[messages.length - 1]?.sender === 'bot' && inputRef.current) {
             setTimeout(() => inputRef.current?.focus(), 50);
@@ -69,10 +67,22 @@ const Chat = () => {
             return;
         }
         
+        if (trimmed.toLowerCase() === "/candlestick") {
+            addMessage("Gráfico de velas generado 🕯️", "bot");
+            addMessage("", "bot", mockCandlestickGraph.graph_type, mockCandlestickGraph.data);
+            setIsLoading(false);
+            return;
+        }
+        
+        if (trimmed.toLowerCase() === "/area") {
+            addMessage("Gráfico de área generado 📈", "bot");
+            addMessage("", "bot", mockAreaGraph.graph_type, mockAreaGraph.data);
+            setIsLoading(false);
+            return;
+        }
 
         try {
             const { response } = await fetchChatResponse(trimmed);
-
             const parsed = JSON.parse(response);
 
             if (parsed.graph_type && parsed.data) {
@@ -98,12 +108,10 @@ const Chat = () => {
 
     return (
         <div className="chat-app-container">
-            {/* Header */}
             <div className="chat-header">
                 Asistente Financiero IA
             </div>
 
-            {/* Área de mensajes */}
             <div ref={chatRef} className="chat-messages">
                 {messages.length === 0 && (
                     <div className="welcome-message">
@@ -117,7 +125,6 @@ const Chat = () => {
                         <div className={`message-bubble ${msg.sender}`}>
                             {msg.content && <p>{msg.content}</p>}
 
-                            {/* Si tiene un gráfico, mostrarlo */}
                             {msg.graph_type && msg.data && (
                                 <div className="mt-3">
                                     <ChartWrapper type={msg.graph_type} data={msg.data} />
@@ -138,7 +145,6 @@ const Chat = () => {
                 <div ref={messagesEndRef}></div>
             </div>
 
-            {/* Input fijo abajo */}
             <div className="chat-input-wrapper">
                 <input
                     id='chat-input'

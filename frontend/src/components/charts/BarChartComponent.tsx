@@ -1,5 +1,4 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
-// Si charts.css está vacío, este import no hace nada, pero mantiene la consistencia
 import "../../styles/charts.css" 
 
 interface BarChartProps {

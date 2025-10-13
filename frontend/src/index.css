@@ -6,12 +6,24 @@ html, body, #root {
     padding: 0;
     font-family: 'Inter', sans-serif;
     font-size: 16px;
-    background-color: #111827; /* Fondo del chat */
+    background-color: var(--bg-color); /* Fondo del chat */
 }
 
 #root {
-    background-image: radial-gradient(at 20% 80%, #173b5e 0px, transparent 40%),
-                        radial-gradient(at 80% 20%, rgba(79,70,229,0.125) 0px, transparent 40%);
+    --bg-color: #111827;
+    --gradient1: #173b5e;
+    --gradient2: rgba(79,70,229,0.125);
+    --shadow: rgba(0,0,0,0.2);
+    --font-color: white;
+    --scrollbar-track: #1f2937;
+    --scrollbar-thumb: #0f1624;
+    --scrollbar-thumb-hover: #5b626c;
+    --user-bubble: #4f46e5;
+    --bot-bubble: #374151;
+    --button-hover: #6366f1;
+
+    background-image: radial-gradient(at 20% 80%, var(--gradient1) 0px, transparent 40%),
+                    radial-gradient(at 80% 20%, var(--gradient2) 0px, transparent 40%);
     background-attachment: fixed; 
 }
 
@@ -21,20 +33,20 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-track {
-    background: #1f2937;
+    background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-    background-color: #0f1624;
+    background-color: var(--scrollbar-thumb);
     border-radius: 0.5rem;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-color: #5b626c;
+    background-color: var(--scrollbar-thumb-hover);
 }
 
 /* Firefox */
 * {
     scrollbar-width: thin;
-    scrollbar-color: #0f1624 #1f2937;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
