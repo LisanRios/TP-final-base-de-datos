@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import TypingIndicator from './TypingIndicator.tsx';
-import { fetchChatResponse } from '../services/geminiApi.ts';
 import ChartWrapper from "./charts/ChartWrapper.tsx";
-import { mockLineGraph, mockBarsGraph, mockPieGraph, mockCandlestickGraph, mockAreaGraph } from "../data/mockData"; 
+import { chatService } from '../services/chatService.ts';
+import { graphService } from '../services/graphService.ts';
 import '../styles/Chat.css';
 
 type Message = {
@@ -45,44 +45,18 @@ const Chat = () => {
         setInput("");
         setIsLoading(true);
 
-        if (trimmed.toLowerCase() === "/line") {
-            addMessage("Gráfico de línea generado 📈", "bot");
-            addMessage("", "bot", mockLineGraph.graph_type, mockLineGraph.data);
-            setIsLoading(false);
-            return;
-        }
-        
-        if (trimmed.toLowerCase() === "/bar") {
-            addMessage("Gráfico de barras generado 📊", "bot");
-            const barDataForChart = mockBarsGraph.data.map(d => ({ name: d.date, value: d.volume }));
-            addMessage("", "bot", mockBarsGraph.graph_type, barDataForChart);
-            setIsLoading(false);
-            return;
-        }
-        
-        if (trimmed.toLowerCase() === "/pie") {
-            addMessage("Gráfico de torta generado 🥧", "bot");
-            addMessage("", "bot", mockPieGraph.graph_type, mockPieGraph.data);
-            setIsLoading(false);
-            return;
-        }
-        
-        if (trimmed.toLowerCase() === "/candlestick") {
-            addMessage("Gráfico de velas generado 🕯️", "bot");
-            addMessage("", "bot", mockCandlestickGraph.graph_type, mockCandlestickGraph.data);
-            setIsLoading(false);
-            return;
-        }
-        
-        if (trimmed.toLowerCase() === "/area") {
-            addMessage("Gráfico de área generado 📈", "bot");
-            addMessage("", "bot", mockAreaGraph.graph_type, mockAreaGraph.data);
+        // Comando de gráfico
+        const graph = graphService.getMockGraph(trimmed);
+        if (graph) {
+            addMessage(`Gráfico ${graph.graph_type} generado 📊`, 'bot');
+            addMessage("", 'bot', graph.graph_type, graph.data);
             setIsLoading(false);
             return;
         }
 
+        // Consulta al backend
         try {
-            const { response } = await fetchChatResponse(trimmed);
+            const { response } = await chatService.sendMessage(trimmed);
             const parsed = JSON.parse(response);
 
             if (parsed.graph_type && parsed.data) {
