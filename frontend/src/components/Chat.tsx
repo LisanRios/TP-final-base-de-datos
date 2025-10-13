@@ -1,15 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import TypingIndicator from './TypingIndicator.tsx';
+import FinancialIndicatorsCard from "./FinancialIndicatorsCard.tsx";
 import ChartWrapper from "./charts/ChartWrapper.tsx";
 import { chatService } from '../services/chatService.ts';
 import { graphService } from '../services/graphService.ts';
+import { mockService } from "../services/mockService.ts";
 import '../styles/Chat.css';
 
-type Message = {
+export type Message = {
     content: string;
     sender: 'user' | 'bot';
     graph_type?: string;
     data?: any;
+    indicators?: { name: string; value: number | string }[];
 };
 
 const Chat = () => {
@@ -33,8 +36,14 @@ const Chat = () => {
         }
     }, [messages, isLoading]);
 
-    const addMessage = (content: string, sender: 'user' | 'bot', graph_type?: string, data?: any) => {
-        setMessages(prev => [...prev, { content, sender, graph_type, data }]);
+    const addMessage = (
+        content: string, 
+        sender: 'user' | 'bot', 
+        graph_type?: string, 
+        data?: any, 
+        indicators?: { name: string; value: number | string }[]
+    ) => {
+        setMessages(prev => [...prev, { content, sender, graph_type, data, indicators }]);
     };
 
     const sendMessage = async () => {
@@ -44,6 +53,14 @@ const Chat = () => {
         addMessage(trimmed, 'user');
         setInput("");
         setIsLoading(true);
+
+        // Comando de prueba
+        if (trimmed.toLowerCase() === "/test-indicators") {
+            const messages = mockService.getTestIndicators();
+            messages.forEach(msg => addMessage(msg.content, msg.sender, msg.graph_type, msg.data, msg.indicators));
+            setIsLoading(false);
+            return;
+        }
 
         // Comando de gráfico
         const graph = graphService.getMockGraph(trimmed);
@@ -58,10 +75,17 @@ const Chat = () => {
         try {
             const { response } = await chatService.sendMessage(trimmed);
             const parsed = JSON.parse(response);
-
+        
             if (parsed.graph_type && parsed.data) {
                 addMessage(parsed.text || "", 'bot');
-                addMessage("", 'bot', parsed.graph_type, parsed.data);
+                
+                addMessage(
+                    "", 
+                    'bot', 
+                    parsed.graph_type, 
+                    parsed.data, 
+                    parsed.indicators
+                );
             } else {
                 addMessage(response, 'bot');
             }
@@ -102,6 +126,10 @@ const Chat = () => {
                             {msg.graph_type && msg.data && (
                                 <div className="mt-3">
                                     <ChartWrapper type={msg.graph_type} data={msg.data} />
+                                    {/* Si el mensaje incluye indicadores financieros */}
+                                    {msg.indicators && msg.indicators.length > 0 && (
+                                        <FinancialIndicatorsCard indicators={msg.indicators} />
+                                    )}
                                 </div>
                             )}
                         </div>
