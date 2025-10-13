@@ -23,7 +23,6 @@ const CustomCandles: React.FC<any> = (props) => {
 
     if (!data || data.length === 0) return null;
 
-    // Escalas correctas
     const xScale = xAxisMap?.[0]?.scale;
     const yScale = yAxisMap?.[0]?.scale;
     if (!xScale || !yScale) return null;
@@ -81,10 +80,9 @@ const CandlestickChartComponent: React.FC<CandlestickChartProps> = ({
 }) => {
     const minWidth = Math.max(300, data.length * 40 + 50);
 
-    // Calculamos padding para que las velas no toquen el eje X
     const dataMin = Math.min(...data.map(d => d.low));
     const dataMax = Math.max(...data.map(d => d.high));
-    const padding = (dataMax - dataMin) * 0.05; // 5% de espacio arriba y abajo
+    const padding = (dataMax - dataMin) * 0.05;
 
     return (
         <div className="chart-container card shadow-sm p-3 mb-3 bg-light rounded">
@@ -95,7 +93,7 @@ const CandlestickChartComponent: React.FC<CandlestickChartProps> = ({
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart
                             data={data}
-                            margin={{ top: 10, right: 20, left: 0, bottom: 50 }} // bottom aumentado
+                            margin={{ top: 10, right: 20, left: 0, bottom: 50 }}
                         >
                             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                             <XAxis
@@ -114,7 +112,7 @@ const CandlestickChartComponent: React.FC<CandlestickChartProps> = ({
                             />
                             <YAxis
                                 tick={{ fill: "#6b7280" }}
-                                domain={[dataMin - padding, dataMax + padding]} // padding extra
+                                domain={[dataMin - padding, dataMax + padding]}
                                 allowDataOverflow={false}
                             />
                             <Tooltip
