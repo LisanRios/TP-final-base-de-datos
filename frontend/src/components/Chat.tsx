@@ -1,11 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import TypingIndicator from './TypingIndicator.tsx';
-import { fetchChatResponse } from '../services/geminiApi.ts';
+import FinancialIndicatorsCard from "./FinancialIndicatorsCard.tsx";
+import ChartWrapper from "./charts/ChartWrapper.tsx";
+import { chatService } from '../services/chatService.ts';
+import { graphService } from '../services/graphService.ts';
+import { mockService } from "../services/mockService.ts";
 import '../styles/Chat.css';
 
-type Message = {
+export type Message = {
     content: string;
     sender: 'user' | 'bot';
+    graph_type?: string;
+    data?: any;
+    indicators?: { name: string; value: number | string }[];
 };
 
 const Chat = () => {
@@ -17,22 +24,26 @@ const Chat = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Mantener scroll al final
     useEffect(() => {
         if (messagesEndRef.current) {
             messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages, isLoading]);
 
-    // Auto-focus input después de respuesta del bot
     useEffect(() => {
         if (!isLoading && messages[messages.length - 1]?.sender === 'bot' && inputRef.current) {
             setTimeout(() => inputRef.current?.focus(), 50);
         }
     }, [messages, isLoading]);
 
-    const addMessage = (content: string, sender: 'user' | 'bot') => {
-        setMessages(prev => [...prev, { content, sender }]);
+    const addMessage = (
+        content: string, 
+        sender: 'user' | 'bot', 
+        graph_type?: string, 
+        data?: any, 
+        indicators?: { name: string; value: number | string }[]
+    ) => {
+        setMessages(prev => [...prev, { content, sender, graph_type, data, indicators }]);
     };
 
     const sendMessage = async () => {
@@ -43,9 +54,41 @@ const Chat = () => {
         setInput("");
         setIsLoading(true);
 
+        // Comando de prueba
+        if (trimmed.toLowerCase() === "/test-indicators") {
+            const messages = mockService.getTestIndicators();
+            messages.forEach(msg => addMessage(msg.content, msg.sender, msg.graph_type, msg.data, msg.indicators));
+            setIsLoading(false);
+            return;
+        }
+
+        // Comando de gráfico
+        const graph = graphService.getMockGraph(trimmed);
+        if (graph) {
+            addMessage(`Gráfico ${graph.graph_type} generado 📊`, 'bot');
+            addMessage("", 'bot', graph.graph_type, graph.data);
+            setIsLoading(false);
+            return;
+        }
+
+        // Consulta al backend
         try {
-            const { response } = await fetchChatResponse(trimmed);
-            addMessage(response, 'bot');
+            const { response } = await chatService.sendMessage(trimmed);
+            const parsed = JSON.parse(response);
+        
+            if (parsed.graph_type && parsed.data) {
+                addMessage(parsed.text || "", 'bot');
+                
+                addMessage(
+                    "", 
+                    'bot', 
+                    parsed.graph_type, 
+                    parsed.data, 
+                    parsed.indicators
+                );
+            } else {
+                addMessage(response, 'bot');
+            }
         } catch (error) {
             console.error(error);
             const msg = (error as Error).message.includes("fuera de contexto")
@@ -63,12 +106,10 @@ const Chat = () => {
 
     return (
         <div className="chat-app-container">
-            {/* Header */}
             <div className="chat-header">
                 Asistente Financiero IA
             </div>
 
-            {/* Área de mensajes */}
             <div ref={chatRef} className="chat-messages">
                 {messages.length === 0 && (
                     <div className="welcome-message">
@@ -80,7 +121,17 @@ const Chat = () => {
                 {messages.map((msg, i) => (
                     <div key={i} className={`message-wrapper ${msg.sender}`}>
                         <div className={`message-bubble ${msg.sender}`}>
-                            <p>{msg.content}</p>
+                            {msg.content && <p>{msg.content}</p>}
+
+                            {msg.graph_type && msg.data && (
+                                <div className="mt-3">
+                                    <ChartWrapper type={msg.graph_type} data={msg.data} />
+                                    {/* Si el mensaje incluye indicadores financieros */}
+                                    {msg.indicators && msg.indicators.length > 0 && (
+                                        <FinancialIndicatorsCard indicators={msg.indicators} />
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -96,7 +147,6 @@ const Chat = () => {
                 <div ref={messagesEndRef}></div>
             </div>
 
-            {/* Input fijo abajo */}
             <div className="chat-input-wrapper">
                 <input
                     id='chat-input'
