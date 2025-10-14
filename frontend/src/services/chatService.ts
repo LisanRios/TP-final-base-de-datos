@@ -28,6 +28,19 @@ export const chatService = {
     
             if (!res.ok) {
                 const errDetail = data?.error || data || res.statusText;
+
+                // Detectar rate-limit upstream (429) y devolver mensaje amigable
+                const isRateLimit = (errDetail && typeof errDetail === 'object' && (
+                    errDetail.code === 429 ||
+                    errDetail?.metadata?.raw?.toString().toLowerCase().includes('rate') ||
+                    errDetail?.message?.toString().toLowerCase().includes('rate')
+                ));
+
+                if (isRateLimit) {
+                    console.warn('Proveedor rate-limited:', errDetail);
+                    throw new Error('El servicio de IA está limitando las solicitudes (429). Intenta de nuevo en unos segundos o configura tu propia clave en https://openrouter.ai/settings/integrations');
+                }
+
                 throw new Error(
                     typeof errDetail === "string"
                     ? errDetail

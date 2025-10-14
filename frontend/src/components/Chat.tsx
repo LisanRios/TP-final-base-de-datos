@@ -74,19 +74,34 @@ const Chat = () => {
         // Consulta al backend
         try {
             const { response } = await chatService.sendMessage(trimmed);
-            const parsed = JSON.parse(response);
-        
-            if (parsed.graph_type && parsed.data) {
-                addMessage(parsed.text || "", 'bot');
-                
+
+            // Intentar parsear la respuesta como JSON; si falla, usarla como texto plano
+            let parsed: any = null;
+            try {
+                parsed = JSON.parse(response);
+            } catch (e) {
+                parsed = null;
+            }
+
+            // Si viene un objeto JSON con gráfico y datos, renderizarlo
+            if (parsed && typeof parsed === 'object' && parsed.graph_type && parsed.data) {
+                // Texto descriptivo opcional
+                if (parsed.text && typeof parsed.text === 'string' && parsed.text.trim().length > 0) {
+                    addMessage(parsed.text, 'bot');
+                }
+
                 addMessage(
-                    "", 
-                    'bot', 
-                    parsed.graph_type, 
-                    parsed.data, 
+                    "",
+                    'bot',
+                    parsed.graph_type,
+                    parsed.data,
                     parsed.indicators
                 );
+            } else if (parsed && typeof parsed === 'object' && typeof parsed.text === 'string') {
+                // Si es un objeto con campo `text`, mostrarlo
+                addMessage(parsed.text, 'bot');
             } else {
+                // Respuesta como texto plano (no JSON)
                 addMessage(response, 'bot');
             }
         } catch (error) {
