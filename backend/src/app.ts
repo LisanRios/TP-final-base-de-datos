@@ -80,10 +80,11 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+
+// ...aquí irán rutas para consultas, ingestión, reportes, etc.
 app.get("/api/scrape/historical", async (req, res) => {
-  if (!req.query.company) {
+  if (!req.query.company) 
     res.status(400).json({ error: 'You forgot to put your company dumbass' })
-  }
 
   try {
     //Obtiene el JSON de investing
@@ -102,9 +103,8 @@ app.get("/api/scrape/historical", async (req, res) => {
 });
 
 app.get("/api/scrape/technical", async (req, res) => {
-  if (!req.query.company) {
+  if (!req.query.company) 
     res.status(400).json({ error: 'You forgot to put your company dumbass' })
-  }
 
   try {
     //Obtiene el JSON de investing
@@ -122,7 +122,7 @@ app.get("/api/scrape/technical", async (req, res) => {
   }
 });
 
-// ...aquí irán rutas para consultas, ingestión, reportes, etc.
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
