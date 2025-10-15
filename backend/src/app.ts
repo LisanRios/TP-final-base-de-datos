@@ -2,8 +2,11 @@ import express from 'express';
 import cors from 'cors';
 // Cargar variables de entorno desde backend/.env en desarrollo
 import dotenv from 'dotenv';
+
+dotenv.config({ path: '.env' });
 import * as cheerio from "cheerio";
-dotenv.config({ path: '../.env' });
+import { connectToDatabase, closeDatabaseConnection, getDb } from './db';
+
 
 async function getInvestingData(url: string): Promise<string> {
   //Obtiene el JSON de investing
@@ -38,6 +41,26 @@ app.post('/api/chat', async (req, res) => {
   const { query } = req.body;
   if (!query) {
     return res.status(400).json({ error: 'Query is required' });
+  }
+
+  // Manejar comando especial /analiza {nombre}
+  if (query.startsWith('/analiza ')) {
+    const nombre = query.slice(9).trim();
+    if (!nombre) {
+      return res.status(400).json({ error: 'Nombre requerido después de /analiza' });
+    }
+
+    try {
+      const db = getDb();
+      await db.collection('analysis').insertOne({
+        name: nombre,
+        created_at: new Date()
+      });
+      return res.json({ response: `Análisis solicitado para ${nombre}. Guardado en la base de datos.` });
+    } catch (error) {
+      console.error('Error guardando análisis:', error);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -124,7 +147,32 @@ app.get("/api/scrape/technical", async (req, res) => {
 
 
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Backend escuchando en puerto ${PORT}`);
+const PORT = Number(process.env.PORT) || 3001;
+
+async function startServer() {
+  try {
+    // Conectar a la base de datos (usa MONGODB_URI en backend/.env)
+    await connectToDatabase();
+
+    app.listen(PORT, () => {
+      console.log(`Backend escuchando en puerto ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Error iniciando servidor:', err);
+    process.exit(1);
+  }
+}
+
+startServer();
+
+// Manejar cierre gracioso
+process.on('SIGINT', async () => {
+  console.log('Recibido SIGINT, cerrando...');
+  await closeDatabaseConnection();
+  process.exit(0);
+});
+process.on('SIGTERM', async () => {
+  console.log('Recibido SIGTERM, cerrando...');
+  await closeDatabaseConnection();
+  process.exit(0);
 });
