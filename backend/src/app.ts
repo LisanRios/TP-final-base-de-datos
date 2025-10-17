@@ -26,8 +26,6 @@ async function getInvestingData(url: string): Promise<string> {
     return data
 }
 
-
-
 const app = express();
 app.use(cors());
 app.use(express.json());
