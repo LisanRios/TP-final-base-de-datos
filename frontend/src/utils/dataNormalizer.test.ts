@@ -7,33 +7,33 @@ import {
   normalizeAreaData,
 } from "./dataNormalizer";
 
- describe("normalizeLineData", () => {
-   it("debe mapear correctamente date y price/value/amount", () => {
-     const raw = [
-       { date: "2025-10-16", price: 100 },
-       { date: "2025-10-17", value: 200 },
-       { date: "2025-10-18", amount: 300 },
-       { date: "2025-10-19" },
-       {}, 
-       { price: null }, 
-     ];
+describe("normalizeLineData", () => {
+    it("debe mapear correctamente date y price/value/amount", () => {
+      const raw = [
+        { date: "2025-10-16", price: 100 },
+        { date: "2025-10-17", value: 200 },
+        { date: "2025-10-18", amount: 300 },
+        { date: "2025-10-19" },
+        {}, 
+        { price: null }, 
+      ];
 
-     const result = normalizeLineData(raw);
+      const result = normalizeLineData(raw);
 
-     expect(result).toEqual([
-       { date: "2025-10-16", price: 100 },
-       { date: "2025-10-17", price: 200 },
-       { date: "2025-10-18", price: 300 },
-       { date: "2025-10-19", price: 0 },
-       { date: undefined, price: 0 },
-       { date: undefined, price: 0 },
-     ]);
-   });
+      expect(result).toEqual([
+        { date: "2025-10-16", price: 100 },
+        { date: "2025-10-17", price: 200 },
+        { date: "2025-10-18", price: 300 },
+        { date: "2025-10-19", price: 0 },
+        { date: undefined, price: 0 },
+        { date: undefined, price: 0 },
+      ]);
+    });
 
-   it("debe manejar array vacío sin errores", () => {
-     expect(normalizeAreaData([])).toEqual([]);
-   });
- });
+    it("debe manejar array vacío sin errores", () => {
+      expect(normalizeAreaData([])).toEqual([]);
+    });
+});
 
 describe("normalizeBarData", () => {
   it("debería mapear correctamente los objetos con name y value", () => {
@@ -66,9 +66,9 @@ describe("normalizeBarData", () => {
     expect(result).toHaveLength(raw.length);
   });
 
-   it("debe manejar array vacío sin errores", () => {
-     expect(normalizeBarData([])).toEqual([]);
-   });
+    it("debe manejar array vacío sin errores", () => {
+      expect(normalizeBarData([])).toEqual([]);
+    });
 });
 
 describe("normalizePieData", () => {

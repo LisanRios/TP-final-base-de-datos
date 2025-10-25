@@ -1,176 +1,75 @@
 import express from 'express';
 import cors from 'cors';
-// Cargar variables de entorno desde backend/.env en desarrollo
-import dotenv from 'dotenv';
-
-dotenv.config({ path: '.env' });
+import { ENV } from './config/env';
 import * as cheerio from "cheerio";
-import { connectToDatabase, closeDatabaseConnection, getDb } from './db';
-
-
-async function getInvestingData(url: string): Promise<string> {
-  //Obtiene el JSON de investing
-    const data = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'x-requested-with': `XMLHttpRequest`
-      }
-    }).then(response => {
-      return response.text()
-    }).then(html => {
-      const $ = cheerio.load(html);
-      const next_data_json = $("#__NEXT_DATA__").text()
-      return next_data_json
-    })
-
-    return data
-}
+import chatRoutes from './routes/chat.routes';
+import { connectToDatabase, closeDatabaseConnection } from './db';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Endpoint de prueba
 app.get('/', (req, res) => {
   res.send('API TP Final Base de Datos funcionando');
 });
 
-// Ruta paranp chat general
-app.post('/api/chat', async (req, res) => {
-  const { query } = req.body;
-  if (!query) {
-    return res.status(400).json({ error: 'Query is required' });
-  }
+// Rutas del chat
+app.use('/api/chat', chatRoutes);
 
-  // Manejar comando especial /analiza {nombre}
-  if (query.startsWith('/analiza ')) {
-    const nombre = query.slice(9).trim();
-    if (!nombre) {
-      return res.status(400).json({ error: 'Nombre requerido después de /analiza' });
-    }
-
-    try {
-      const db = getDb();
-      await db.collection('analysis').insertOne({
-        name: nombre,
-        created_at: new Date()
-      });
-      return res.json({ response: `Análisis solicitado para ${nombre}. Guardado en la base de datos.` });
-    } catch (error) {
-      console.error('Error guardando análisis:', error);
-      return res.status(500).json({ error: 'Error interno del servidor' });
-    }
-  }
-
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'API key not configured' });
-  }
-
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'deepseek/deepseek-chat-v3.1:free',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful assistant.'
-          },
-          {
-            role: 'user',
-            content: query
-          }
-        ]
-      })
+// Funciones de scraping
+async function getInvestingData(url: string): Promise<string> {
+  const data = await fetch(url, {
+    method: 'POST',
+    headers: { 'x-requested-with': `XMLHttpRequest` }
+  }).then(r => r.text())
+    .then(html => {
+      const $ = cheerio.load(html);
+      return $("#__NEXT_DATA__").text();
     });
+  return data;
+}
 
-    const data = await response.json();
-    if (!response.ok) {
-      return res.status(response.status).json({ error: data });
-    }
-
-    const responseText = data.choices[0].message.content;
-    res.json({ response: responseText });
-  } catch (error) {
-    console.error('Error calling OpenRouter:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-
-// ...aquí irán rutas para consultas, ingestión, reportes, etc.
 app.get("/api/scrape/historical", async (req, res) => {
-  if (!req.query.company) 
-    res.status(400).json({ error: 'You forgot to put your company dumbass' })
+  if (!req.query.company) return res.status(400).json({ error: 'Falta company' });
 
   try {
-    //Obtiene el JSON de investing
-    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
-
-    //Filtra la informacion importante
-    const historicalData = JSON.parse(data)["props"]["pageProps"]["state"]["historicalDataStore"]["historicalData"]["data"]
-    const historicalDataJson = JSON.stringify(historicalData)
-    
-    res.send(historicalDataJson)
-  }
-  catch (error){
-    console.error('Error doing scraping.', error);
+    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`);
+    const historicalData = JSON.parse(data)["props"]["pageProps"]["state"]["historicalDataStore"]["historicalData"]["data"];
+    res.json(historicalData);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 app.get("/api/scrape/technical", async (req, res) => {
-  if (!req.query.company) 
-    res.status(400).json({ error: 'You forgot to put your company dumbass' })
+  if (!req.query.company) return res.status(400).json({ error: 'Falta company' });
 
   try {
-    //Obtiene el JSON de investing
-    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
-
-    //Filtra la informacion importante
-    const technicalData = JSON.parse(data)["props"]["pageProps"]["state"]["technicalStore"]["technicalData"]
-    const technicalDataJson = JSON.stringify(technicalData)
-    
-    res.send(technicalDataJson)
-  }
-  catch (error){
-    console.error('Error doing scraping.', error);
+    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`);
+    const technicalData = JSON.parse(data)["props"]["pageProps"]["state"]["technicalStore"]["technicalData"];
+    res.json(technicalData);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-
-
-const PORT = Number(process.env.PORT) || 3001;
+const PORT = Number(ENV.PORT) || 3001;
 
 async function startServer() {
   try {
-    // Conectar a la base de datos (usa MONGODB_URI en backend/.env)
     await connectToDatabase();
-
-    app.listen(PORT, () => {
-      console.log(`Backend escuchando en puerto ${PORT}`);
-    });
+    app.listen(PORT, () => console.log(`Backend corriendo en puerto ${PORT}`));
   } catch (err) {
     console.error('Error iniciando servidor:', err);
     process.exit(1);
   }
 }
 
-startServer();
+// Manejo de cierre
+process.on('SIGINT', async () => { await closeDatabaseConnection(); process.exit(0); });
+process.on('SIGTERM', async () => { await closeDatabaseConnection(); process.exit(0); });
 
-// Manejar cierre gracioso
-process.on('SIGINT', async () => {
-  console.log('Recibido SIGINT, cerrando...');
-  await closeDatabaseConnection();
-  process.exit(0);
-});
-process.on('SIGTERM', async () => {
-  console.log('Recibido SIGTERM, cerrando...');
-  await closeDatabaseConnection();
-  process.exit(0);
-});
+startServer();
