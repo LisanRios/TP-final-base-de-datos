@@ -7,6 +7,7 @@ dotenv.config({ path: '.env' });
 import * as cheerio from "cheerio";
 import { connectToDatabase, closeDatabaseConnection, getDb } from './db';
 
+//test
 
 async function getInvestingData(url: string): Promise<string> {
   //Obtiene el JSON de investing
@@ -25,6 +26,16 @@ async function getInvestingData(url: string): Promise<string> {
 
     return data
 }
+
+function removeKeyFromArray<T extends Record<string, any>>(
+  arr: T[],
+  key: string
+): Array<Record<string, any>> {
+  return arr.map(obj =>
+    Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key))
+  );
+}
+
 
 const app = express();
 app.use(cors());
@@ -103,7 +114,9 @@ app.post('/api/chat', async (req, res) => {
 
 
 // ...aquí irán rutas para consultas, ingestión, reportes, etc.
-app.get("/api/scrape/historical", async (req, res) => {
+
+//Devuelve los datos historicos de la empresa
+app.get("/api/scrape/company", async (req, res) => {
   if (!req.query.company) 
     res.status(400).json({ error: 'You forgot to put your company dumbass' })
 
@@ -112,10 +125,23 @@ app.get("/api/scrape/historical", async (req, res) => {
     const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
 
     //Filtra la informacion importante
-    const historicalData = JSON.parse(data)["props"]["pageProps"]["state"]["historicalDataStore"]["historicalData"]["data"]
-    const historicalDataJson = JSON.stringify(historicalData)
+    let historicalData = JSON.parse(data)["props"]["pageProps"]["state"]["historicalDataStore"]["historicalData"]["data"]
+    let technicalData = JSON.parse(data)["props"]["pageProps"]["state"]["technicalStore"]["technicalData"]
+    let financialData = JSON.parse(data)["props"]["pageProps"]["state"]["financialStatementsStore"]
+
+    //Le saca los colores y datos innecesarios
+    historicalData = removeKeyFromArray(historicalData, "direction_color")
     
-    res.send(historicalDataJson)
+
+    let allData = {
+      "historical": historicalData,
+      "technicalData": technicalData,
+      "financialData": financialData
+    }
+    
+    const allDataJson = JSON.stringify(allData)
+    
+    res.send(allDataJson)
   }
   catch (error){
     console.error('Error doing scraping.', error);
@@ -123,34 +149,44 @@ app.get("/api/scrape/historical", async (req, res) => {
   }
 });
 
-app.get("/api/scrape/technical", async (req, res) => {
+
+//Este es mas de debugeo, devuelve todo el JSON
+app.get("/api/scrape/json", async (req, res) => {
   if (!req.query.company) 
     res.status(400).json({ error: 'You forgot to put your company dumbass' })
 
   try {
     //Obtiene el JSON de investing
-    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
-
-    //Filtra la informacion importante
-    const technicalData = JSON.parse(data)["props"]["pageProps"]["state"]["technicalStore"]["technicalData"]
-    const technicalDataJson = JSON.stringify(technicalData)
-    
-    res.send(technicalDataJson)
+    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-financial-summary`)
+    res.send(data)
   }
   catch (error){
     console.error('Error doing scraping.', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+})
 
+app.get("/api/scrape/indexes", async (req, res) => {
+  try {
+    if (!req.query.index)
+      res.status(400).json({ error: "No pusiste el indice" })
 
+    //Obtiene el JSON de investing
+    const data = await getInvestingData(`https://www.investing.com/indices/${req.query.index}`)
+    res.send(data)
+  }
+  catch (error){
+    console.error('Error doing scraping.', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+})
 
 const PORT = Number(process.env.PORT) || 3001;
 
 async function startServer() {
   try {
     // Conectar a la base de datos (usa MONGODB_URI en backend/.env)
-    await connectToDatabase();
+    //await connectToDatabase();
 
     app.listen(PORT, () => {
       console.log(`Backend escuchando en puerto ${PORT}`);
@@ -161,9 +197,11 @@ async function startServer() {
   }
 }
 
+
 startServer();
 
 // Manejar cierre gracioso
+/*
 process.on('SIGINT', async () => {
   console.log('Recibido SIGINT, cerrando...');
   await closeDatabaseConnection();
@@ -174,3 +212,4 @@ process.on('SIGTERM', async () => {
   await closeDatabaseConnection();
   process.exit(0);
 });
+*/
