@@ -1,2 +1,5 @@
 # dependencias
 /node_modules
+
+# variables de entorno locales
+.env

@@ -1,8 +1,10 @@
 import { Router } from 'express';
-import * as analysisController from '../controller/analysis.controller';
+import { analysisController } from "../controller/analysis.controller";
 
 const router = Router();
 
-router.get('/', analysisController.getReportById); // '/report/id'
+router.get("/", analysisController.getAllAnalyses);
 
-module.exports = router;
+router.get("/:id", analysisController.getAnalysisById);
+
+export default router;

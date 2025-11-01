@@ -1,7 +1,4 @@
-export interface ChartDataDTO {
-    type: 'line' | 'bar' | 'pie';
-    data: any[];
-}
+import { ChartDataDTO } from './chart-data.dto';
 
 export interface ChatResponseDTO {
     text: string;

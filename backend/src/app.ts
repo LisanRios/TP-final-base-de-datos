@@ -3,6 +3,7 @@ import cors from 'cors';
 import { ENV } from './config/env';
 import * as cheerio from "cheerio";
 import chatRoutes from './routes/chat.routes';
+import analysisRoutes from './routes/analysis.routes';
 import { connectToDatabase, closeDatabaseConnection } from './db';
 
 const app = express();
@@ -16,6 +17,9 @@ app.get('/', (req, res) => {
 
 // Rutas del chat
 app.use('/api/chat', chatRoutes);
+
+// Rutas de los análisis
+app.use('/api/analysis', analysisRoutes);
 
 // Funciones de scraping
 async function getInvestingData(url: string): Promise<string> {

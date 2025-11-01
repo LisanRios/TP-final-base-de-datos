@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * Componente para renderizar un indicador de carga animado (puntos parpadeantes).
  */

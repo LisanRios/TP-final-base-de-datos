@@ -1,4 +1,5 @@
-import { ChatResponseDTO, ChartDataDTO } from "../dto/chat-response.dto";
+import { ChatResponseDTO } from "../dto/chat-response.dto";
+import { ChartDataDTO } from "../dto/chart-data.dto";
 import { ChatEntity } from "../domain/chat";
 
 export class ChatMapper {
