@@ -74,7 +74,7 @@ app.post('/api/chat', async (req, res) => {
 
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'API key not configured' });
+   return res.status(500).json({ error: 'API key not configured' });
   }
 
   try {
@@ -121,6 +121,8 @@ app.get("/api/scrape/company", async (req, res) => {
     res.status(400).json({ error: 'You forgot to put your company dumbass' })
 
   try {
+    //Extraccion de datos
+
     //Obtiene el JSON de investing
     const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
 
@@ -131,16 +133,41 @@ app.get("/api/scrape/company", async (req, res) => {
 
     //Le saca los colores y datos innecesarios
     historicalData = removeKeyFromArray(historicalData, "direction_color")
-    
 
     let allData = {
-      "historical": historicalData,
-      "technicalData": technicalData,
-      "financialData": financialData
+      company: req.query.company,
+      historicalData: historicalData,
+      technicalData: technicalData,
+      financialData: financialData,
+      createdAt: new Date()
     }
     
     const allDataJson = JSON.stringify(allData)
     
+    /////Envio de datos a la db/////
+    let db = getDb()
+    console.log(db.databaseName)
+
+    //Primero ve si la coleccion existe
+    const existing = await db.listCollections({ name: "companies" }).toArray();
+    if (existing.length === 0) {
+      await db.createCollection("companies", { capped: false });
+      console.log(`Collection '${"companies"}' created.`);
+    }
+
+    //Updatea o si no crea un documento nuevo
+    let coll = await db.collection("companies")
+    const existingCompany = await coll.findOne({ "company": req.query.company });
+    
+    if (existingCompany) {
+      await coll.updateOne(
+        { "company": req.query.company },
+        { $set: allData }
+      );
+    } else {
+      await coll.insertOne(allData);
+    }
+
     res.send(allDataJson)
   }
   catch (error){
@@ -149,6 +176,21 @@ app.get("/api/scrape/company", async (req, res) => {
   }
 });
 
+
+app.get("/api/scrape/indexes", async (req, res) => {
+  try {
+    if (!req.query.index)
+      res.status(400).json({ error: "No pusiste el indice" })
+
+    //Obtiene el JSON de investing
+    const data = await getInvestingData(`https://www.investing.com/indices/${req.query.index}`)
+    res.send(data)
+  }
+  catch (error){
+    console.error('Error doing scraping.', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+})
 
 //Este es mas de debugeo, devuelve todo el JSON
 app.get("/api/scrape/json", async (req, res) => {
@@ -166,27 +208,12 @@ app.get("/api/scrape/json", async (req, res) => {
   }
 })
 
-app.get("/api/scrape/indexes", async (req, res) => {
-  try {
-    if (!req.query.index)
-      res.status(400).json({ error: "No pusiste el indice" })
-
-    //Obtiene el JSON de investing
-    const data = await getInvestingData(`https://www.investing.com/indices/${req.query.index}`)
-    res.send(data)
-  }
-  catch (error){
-    console.error('Error doing scraping.', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-})
-
 const PORT = Number(process.env.PORT) || 3001;
 
 async function startServer() {
   try {
     // Conectar a la base de datos (usa MONGODB_URI en backend/.env)
-    //await connectToDatabase();
+    await connectToDatabase();
 
     app.listen(PORT, () => {
       console.log(`Backend escuchando en puerto ${PORT}`);
