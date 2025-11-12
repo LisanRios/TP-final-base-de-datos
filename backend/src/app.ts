@@ -45,6 +45,15 @@ app.get('/', (req, res) => {
   res.send('API TP Final Base de Datos funcionando');
 });
 
+function sanitizeModelOutput(text: string): string {
+  return text
+    .replace(/<\｜begin▁of▁sentence｜>/g, '')
+    .replace(/<\|begin_of_text\|>/g, '')
+    .replace(/<\|end_of_text\|>/g, '')
+    .trim();
+}
+
+
 // Ruta paranp chat general
 app.post('/api/chat', async (req, res) => {
   const { query } = req.body;
@@ -105,7 +114,8 @@ app.post('/api/chat', async (req, res) => {
     }
 
     const responseText = data.choices[0].message.content;
-    res.json({ response: responseText });
+    const cleanResponse = sanitizeModelOutput(responseText);
+    res.json({ response: cleanResponse });
   } catch (error) {
     console.error('Error calling OpenRouter:', error);
     res.status(500).json({ error: 'Internal server error' });
