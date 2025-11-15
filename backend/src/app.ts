@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 // Cargar variables de entorno desde backend/.env en desarrollo
 import dotenv from 'dotenv';
@@ -92,7 +92,7 @@ app.use(express.json());
 //   return data;
 // }
 
-function generarTextoDiario(company: string, date: string, raw: any): string {
+function generarTextoDiario(company: any, date: any, raw: any): string {
   return `El día ${date} la acción ${company} abrió en ${raw.last_open}, ` +
          `alcanzó un máximo de ${raw.last_max}, un mínimo de ${raw.last_min} ` +
          `y cerró en ${raw.last_close}. El volumen operado fue ${raw.volume} ` +
@@ -185,7 +185,7 @@ app.get("/api/scrape/company", async (req, res) => {
     res.status(400).json({ error: 'You forgot to put your company dumbass' })
 
   try {
-    const url = `https://www.investing.com/equities/${company}-historical-data`
+    const url = `https://www.investing.com/equities/${req.query.company}-historical-data`
     const data = await getInvestingData(url);
 
 
@@ -211,7 +211,7 @@ for (const day of historicalData) {
   change: safeNum(day.change_percentRaw ?? day.change_percent ?? day.change) // OJO
 };
 
-  const text = generarTextoDiario(company, day.rowDate, raw);
+  const text = generarTextoDiario(req.query.company, day.rowDate, raw);
 
   const vector = await vectorizarTexto(text); // ✅ AQUÍ SE GENERA EL EMBEDDING
 
@@ -222,6 +222,7 @@ for (const day of historicalData) {
     vector
   });
 }
+  const company = req.query.company as string;
 
     const allData = {
       company,
