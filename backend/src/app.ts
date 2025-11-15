@@ -6,7 +6,26 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env' });
 import * as cheerio from "cheerio";
 import { connectToDatabase, closeDatabaseConnection, getDb } from './db';
-import { Builder, By, until} from "selenium-webdriver"
+import { Builder, By, WebDriver, until } from 'selenium-webdriver';
+import chrome from 'selenium-webdriver/chrome';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+
+const BASE_INVESTING_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+  'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache',
+  'Referer': 'https://www.investing.com/'
+};
+
+const INVESTING_TIMEOUT_MS = 20000;
+const INVESTING_COOKIE = process.env.INVESTING_COOKIE ?? '';
+const ENABLE_SELENIUM_FALLBACK = process.env.SCRAPER_ENABLE_SELENIUM === 'true';
+
+puppeteer.use(StealthPlugin());
 
 
 const mongo_enabled = true
@@ -26,16 +45,139 @@ async function getInvestingData(url: string): Promise<string> {
 }
 
 async function getInvestingHTML(url: string): Promise<string> {
-  //Obtiene el JSON de investing
-    let driver = await new Builder().forBrowser('chrome').build();
+  const errors: Array<{ label: string; error: unknown }> = [];
+
+  try {
+    console.info('Extrayendo HTML de Investing con Puppeteer...');
+    return await fetchInvestingHTMLViaPuppeteer(url);
+  } catch (puppeteerError) {
+    errors.push({ label: 'puppeteer', error: puppeteerError });
+    console.warn('Puppeteer falló, evaluando fallback Selenium...', puppeteerError);
+  }
+
+  if (ENABLE_SELENIUM_FALLBACK) {
+    try {
+      return await fetchInvestingHTMLViaSelenium(url);
+    } catch (seleniumError) {
+      errors.push({ label: 'selenium', error: seleniumError });
+      console.error('El fallback Selenium falló.', seleniumError);
+    }
+  } else {
+    console.warn('Selenium deshabilitado vía SCRAPER_ENABLE_SELENIUM.');
+  }
+
+  const lastAttempt = errors.length ? errors[errors.length - 1] : undefined;
+  const lastError = lastAttempt?.error as Error | undefined;
+  throw new Error(`No se pudo obtener HTML de Investing. Último error (${lastAttempt?.label ?? 'sin intentos'}): ${lastError?.message ?? 'sin detalle'}`);
+}
+
+async function fetchInvestingHTMLViaPuppeteer(url: string): Promise<string> {
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-blink-features=AutomationControlled',
+      '--window-size=1920,1080'
+    ]
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent(BASE_INVESTING_HEADERS['User-Agent']);
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': BASE_INVESTING_HEADERS['Accept-Language'],
+      'Cache-Control': BASE_INVESTING_HEADERS['Cache-Control'],
+      'Pragma': BASE_INVESTING_HEADERS['Pragma'],
+      'Referer': BASE_INVESTING_HEADERS['Referer'],
+      ...(INVESTING_COOKIE ? { Cookie: INVESTING_COOKIE } : {})
+    });
+
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: INVESTING_TIMEOUT_MS });
+    await page.evaluate(() => {
+      const cookieBtn = document.querySelector('#onetrust-accept-btn-handler');
+      cookieBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      const dialogClose = document.querySelector('div[role="dialog"] button, button[aria-label="Close"]');
+      dialogClose?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    await page.waitForSelector('#__NEXT_DATA__', { timeout: INVESTING_TIMEOUT_MS });
+    return await page.content();
+  } finally {
+    await browser.close();
+  }
+}
+
+async function fetchInvestingHTMLViaSelenium(url: string): Promise<string> {
+  const options = new chrome.Options();
+  options.addArguments(
+    '--headless=new',
+    '--disable-gpu',
+    '--no-sandbox',
+    '--disable-dev-shm-usage',
+    '--window-size=1920,1080',
+    '--disable-blink-features=AutomationControlled',
+    `--user-agent=${BASE_INVESTING_HEADERS['User-Agent']}`,
+    '--lang=es-ES'
+  );
+  options.excludeSwitches('enable-automation');
+  options.excludeSwitches('enable-logging');
+  options.setUserPreferences({
+    'profile.default_content_setting_values.notifications': 2,
+    'intl.accept_languages': 'es-ES,es'
+  });
+
+  const driver = await new Builder()
+    .forBrowser('chrome')
+    .setChromeOptions(options)
+    .build();
+
+  try {
     await driver.get(url);
     await driver.wait(until.elementLocated(By.css('body')), 5000);
 
+    await driver.executeScript(`
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+      window.navigator.chrome = window.navigator.chrome || { runtime: {} };
+      window.navigator.permissions && window.navigator.permissions.query && window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications'
+          ? Promise.resolve({ state: Notification.permission })
+          : window.navigator.permissions.query(parameters)
+      );
+    `);
+    await waitForNextData(driver, 20000);
+
+    // Cierra overlays intrusivos que bloquean la carga del cuerpo
+    await driver.executeScript(`
+      const dialogClose = document.querySelector('div[role="dialog"] button, button[aria-label="Close"]');
+      if (dialogClose) {
+        dialogClose.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      }
+      const cookieBtn = document.querySelector('#onetrust-accept-btn-handler');
+      if (cookieBtn) {
+        cookieBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      }
+    `);
+
     const html = await driver.getPageSource();
-
+    if (!html.includes('__NEXT_DATA__')) {
+      throw new Error('Selenium no pudo capturar el payload esperado');
+    }
+    return html;
+  } finally {
     await driver.quit();
+  }
+}
 
-    return html
+async function waitForNextData(driver: WebDriver, timeoutMs: number) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const found = await driver.executeScript('return !!document.querySelector("#__NEXT_DATA__")');
+    if (found) return;
+    await driver.sleep(500);
+  }
+  throw new Error('El script de Next.js no apareció tras esperar 20s (posible bloqueo por login).');
 }
 
 function removeKeyFromArray<T extends Record<string, any>>(
