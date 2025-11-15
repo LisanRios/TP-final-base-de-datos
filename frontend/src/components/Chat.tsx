@@ -6,6 +6,7 @@ import { chatService } from '../services/chatService.ts';
 import { graphService } from '../services/graphService.ts';
 import { mockService } from "../services/mockService.ts";
 import '../styles/Chat.css';
+import  ExportChatButton  from "./ExportChatButton.tsx"
 
 export type Message = {
     content: string;
@@ -14,6 +15,8 @@ export type Message = {
     data?: any;
     indicators?: { name: string; value: number | string }[];
 };
+
+const CHAT_HISTORY_ID = 'financial-chat-history';
 
 const Chat = () => {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -121,11 +124,14 @@ const Chat = () => {
 
     return (
         <div className="chat-app-container">
-            <div className="chat-header">
+            <div className="chat-header-row">
+                <div className="chat-header">
                 Asistente Financiero IA
+                </div>
+                <ExportChatButton elementId={CHAT_HISTORY_ID} />
             </div>
 
-            <div ref={chatRef} className="chat-messages">
+            <div ref={chatRef} id= {CHAT_HISTORY_ID} className="chat-messages">
                 {messages.length === 0 && (
                     <div className="welcome-message">
                         <p className="text-xl font-bold mb-2">¡Hola! Soy tu Asistente Financiero IA.</p>

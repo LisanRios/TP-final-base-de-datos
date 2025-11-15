@@ -2,23 +2,25 @@ import express from 'express';
 import cors from 'cors';
 // Cargar variables de entorno desde backend/.env en desarrollo
 import dotenv from 'dotenv';
+import * as cheerio from 'cheerio';
+import { connectToDatabase, getDb } from './db';
+import { HfInference } from "@huggingface/inference";
+
+
+
 
 dotenv.config({ path: '.env' });
-import * as cheerio from "cheerio";
-import { connectToDatabase, closeDatabaseConnection, getDb } from './db';
+import { Builder, By, until} from "selenium-webdriver"
 
-//test
+
+const mongo_enabled = true
+
 
 async function getInvestingData(url: string): Promise<string> {
   //Obtiene el JSON de investing
-    const data = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'x-requested-with': `XMLHttpRequest`
-      }
-    }).then(response => {
-      return response.text()
-    }).then(html => {
+    const data = await getInvestingHTML(
+      url
+    ).then(html => {
       const $ = cheerio.load(html);
       const next_data_json = $("#__NEXT_DATA__").text()
       return next_data_json
@@ -27,21 +29,83 @@ async function getInvestingData(url: string): Promise<string> {
     return data
 }
 
-function removeKeyFromArray<T extends Record<string, any>>(
-  arr: T[],
-  key: string
-): Array<Record<string, any>> {
-  return arr.map(obj =>
-    Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key))
-  );
+function safeNum(x: any) {
+  return typeof x === "number" ? x : Number(x ?? 0);
 }
+
+async function getInvestingHTML(url: string): Promise<string> {
+  //Obtiene el JSON de investing
+    let driver = await new Builder().forBrowser('chrome').build();
+    await driver.get(url);
+    await driver.wait(until.elementLocated(By.css('body')), 5000);
+
+    const html = await driver.getPageSource();
+
+    await driver.quit();
+
+    return html
+}
+
+
+const hf = new HfInference(process.env.HF_TOKEN);
+
+async function vectorizarTexto(text: string): Promise<number[]> {
+  const response = await hf.featureExtraction({
+    model: "intfloat/e5-small-v2",
+    inputs: text,
+    pooling: "mean",
+    normalize: true
+  });
+
+  return response as number[];
+}
+
+// function removeKeyFromArray<T extends Record<string, any>>(
+//   arr: T[],
+//   key: string
+// ): Array<Record<string, any>> {
+//   return arr.map(obj =>
+//     Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key))
+//   );
+// }
 
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => {
+
+
+
+// --------------------- Funciones ---------------------
+
+// async function getInvestingData(url: string): Promise<string> {
+//   const data = await fetch(url, {
+//     method: 'POST',
+//     headers: { 'x-requested-with': 'XMLHttpRequest' }
+//   }).then(res => res.text())
+//     .then(html => {
+//       const $ = cheerio.load(html);
+//       const next_data_json = $("#__NEXT_DATA__").text();
+//       return next_data_json;
+//     });
+//   return data;
+// }
+
+function generarTextoDiario(company: string, date: string, raw: any): string {
+  return `El día ${date} la acción ${company} abrió en ${raw.last_open}, ` +
+         `alcanzó un máximo de ${raw.last_max}, un mínimo de ${raw.last_min} ` +
+         `y cerró en ${raw.last_close}. El volumen operado fue ${raw.volume} ` +
+         `y la variación diaria fue ${raw.change}%.`;
+}
+
+function removeKeyFromArray<T extends Record<string, any>>(arr: T[], key: string): T[] {
+  return arr.map(obj => Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key)) as T);
+}
+
+// --------------------- Rutas ---------------------
+
+app.get('/', (_req: Request, res: Response) => {
   res.send('API TP Final Base de Datos funcionando');
 });
 
@@ -121,56 +185,84 @@ app.get("/api/scrape/company", async (req, res) => {
     res.status(400).json({ error: 'You forgot to put your company dumbass' })
 
   try {
-    //Extraccion de datos
+    const url = `https://www.investing.com/equities/${company}-historical-data`
+    const data = await getInvestingData(url);
 
-    //Obtiene el JSON de investing
-    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
 
-    //Filtra la informacion importante
+  // // Rompemos a propósito para que no siga
+  // return res.json({ raw: data });/*
+
+     //Filtra la informacion importante
     let historicalData = JSON.parse(data)["props"]["pageProps"]["state"]["historicalDataStore"]["historicalData"]["data"]
     let technicalData = JSON.parse(data)["props"]["pageProps"]["state"]["technicalStore"]["technicalData"]
     let financialData = JSON.parse(data)["props"]["pageProps"]["state"]["financialStatementsStore"]
 
-    //Le saca los colores y datos innecesarios
-    historicalData = removeKeyFromArray(historicalData, "direction_color")
+    historicalData = removeKeyFromArray(historicalData, "direction_color");
 
-    let allData = {
-      company: req.query.company,
-      historicalData: historicalData,
-      technicalData: technicalData,
-      financialData: financialData,
+    // Vectorizamos uno por uno (sin romper orden)
+const historicalWithText: any[] = [];
+for (const day of historicalData) {
+  const raw = {
+  last_close: safeNum(day.last_closeRaw ?? day.last_close),
+  last_open: safeNum(day.last_openRaw ?? day.last_open),
+  last_max: safeNum(day.last_maxRaw ?? day.last_max),
+  last_min: safeNum(day.last_minRaw ?? day.last_min),
+  volume: safeNum(day.volumeRaw ?? day.volume),
+  change: safeNum(day.change_percentRaw ?? day.change_percent ?? day.change) // OJO
+};
+
+  const text = generarTextoDiario(company, day.rowDate, raw);
+
+  const vector = await vectorizarTexto(text); // ✅ AQUÍ SE GENERA EL EMBEDDING
+
+  historicalWithText.push({
+    date: day.rowDateRaw,
+    raw,
+    text,
+    vector
+  });
+}
+
+    const allData = {
+      company,
+      historicalData: historicalWithText,
+      technicalData,
+      financialData,
       createdAt: new Date()
     }
     
     const allDataJson = JSON.stringify(allData)
     
     /////Envio de datos a la db/////
-    let db = getDb()
-    console.log(db.databaseName)
+    if (mongo_enabled) {
+      let db = getDb()
+      console.log(db.databaseName)
 
-    //Primero ve si la coleccion existe
-    const existing = await db.listCollections({ name: "companies" }).toArray();
-    if (existing.length === 0) {
-      await db.createCollection("companies", { capped: false });
-      console.log(`Collection '${"companies"}' created.`);
+      //Primero ve si la coleccion existe
+      const existing = await db.listCollections({ name: "companies" }).toArray();
+      if (existing.length === 0) {
+        await db.createCollection("companies", { capped: false });
+        console.log(`Collection '${"companies"}' created.`);
+      }
+
+      //Updatea o si no crea un documento nuevo
+      let coll = await db.collection("companies")
+      const existingCompany = await coll.findOne({ "company": req.query.company });
+      
+      if (existingCompany) {
+        await coll.updateOne(
+          { "company": req.query.company },
+          { $set: allData }
+        );
+      } else {
+        await coll.insertOne(allData);
+      }
+
+      console.log("Information sent to db sucessfully.")
     }
 
-    //Updatea o si no crea un documento nuevo
-    let coll = await db.collection("companies")
-    const existingCompany = await coll.findOne({ "company": req.query.company });
-    
-    if (existingCompany) {
-      await coll.updateOne(
-        { "company": req.query.company },
-        { $set: allData }
-      );
-    } else {
-      await coll.insertOne(allData);
-    }
-
-    res.send(allDataJson)
-  }
-  catch (error){
+    res.json(allData);
+  } catch (error) {
     console.error('Error doing scraping.', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -199,7 +291,23 @@ app.get("/api/scrape/json", async (req, res) => {
 
   try {
     //Obtiene el JSON de investing
-    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-financial-summary`)
+    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
+    res.send(data)
+  }
+  catch (error){
+    console.error('Error doing scraping.', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+})
+
+//Este es mas de debugeo, devuelve todo el html
+app.get("/api/scrape/html", async (req, res) => {
+  if (!req.query.company) 
+    res.status(400).json({ error: 'You forgot to put your company dumbass' })
+
+  try {
+    //Obtiene el JSON de investing
+    const data = await getInvestingHTML(`https://www.investing.com/equities/${req.query.company}-historical-data`)
     res.send(data)
   }
   catch (error){
@@ -213,7 +321,8 @@ const PORT = Number(process.env.PORT) || 3001;
 async function startServer() {
   try {
     // Conectar a la base de datos (usa MONGODB_URI en backend/.env)
-    await connectToDatabase();
+    if (mongo_enabled)
+      await connectToDatabase();
 
     app.listen(PORT, () => {
       console.log(`Backend escuchando en puerto ${PORT}`);

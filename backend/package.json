@@ -14,12 +14,18 @@
     "express": "^4.18.2",
     "graphql": "^16.8.1",
     "mongodb": "^5.7.0",
-    "mongoose": "^7.6.0"
+    "mongoose": "^7.6.0",
+    "node-fetch": "^3.3.2",
+    "onnxruntime-node": "^1.23.2",
+    "playwright": "^1.56.1",
+    "selenium-webdriver": "^4.38.0",
+    "webdriver-manager": "^12.1.9"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^24.7.0",
+    "@types/selenium-webdriver": "^4.35.4",
     "nodemon": "^3.0.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
