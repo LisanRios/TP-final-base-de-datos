@@ -6,25 +6,36 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env' });
 import * as cheerio from "cheerio";
 import { connectToDatabase, closeDatabaseConnection, getDb } from './db';
+import { Builder, By, until} from "selenium-webdriver"
 
-//test
+
+const mongo_enabled = true
+
 
 async function getInvestingData(url: string): Promise<string> {
   //Obtiene el JSON de investing
-    const data = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'x-requested-with': `XMLHttpRequest`
-      }
-    }).then(response => {
-      return response.text()
-    }).then(html => {
+    const data = await getInvestingHTML(
+      url
+    ).then(html => {
       const $ = cheerio.load(html);
       const next_data_json = $("#__NEXT_DATA__").text()
       return next_data_json
     })
 
     return data
+}
+
+async function getInvestingHTML(url: string): Promise<string> {
+  //Obtiene el JSON de investing
+    let driver = await new Builder().forBrowser('chrome').build();
+    await driver.get(url);
+    await driver.wait(until.elementLocated(By.css('body')), 5000);
+
+    const html = await driver.getPageSource();
+
+    await driver.quit();
+
+    return html
 }
 
 function removeKeyFromArray<T extends Record<string, any>>(
@@ -145,27 +156,31 @@ app.get("/api/scrape/company", async (req, res) => {
     const allDataJson = JSON.stringify(allData)
     
     /////Envio de datos a la db/////
-    let db = getDb()
-    console.log(db.databaseName)
+    if (mongo_enabled) {
+      let db = getDb()
+      console.log(db.databaseName)
 
-    //Primero ve si la coleccion existe
-    const existing = await db.listCollections({ name: "companies" }).toArray();
-    if (existing.length === 0) {
-      await db.createCollection("companies", { capped: false });
-      console.log(`Collection '${"companies"}' created.`);
-    }
+      //Primero ve si la coleccion existe
+      const existing = await db.listCollections({ name: "companies" }).toArray();
+      if (existing.length === 0) {
+        await db.createCollection("companies", { capped: false });
+        console.log(`Collection '${"companies"}' created.`);
+      }
 
-    //Updatea o si no crea un documento nuevo
-    let coll = await db.collection("companies")
-    const existingCompany = await coll.findOne({ "company": req.query.company });
-    
-    if (existingCompany) {
-      await coll.updateOne(
-        { "company": req.query.company },
-        { $set: allData }
-      );
-    } else {
-      await coll.insertOne(allData);
+      //Updatea o si no crea un documento nuevo
+      let coll = await db.collection("companies")
+      const existingCompany = await coll.findOne({ "company": req.query.company });
+      
+      if (existingCompany) {
+        await coll.updateOne(
+          { "company": req.query.company },
+          { $set: allData }
+        );
+      } else {
+        await coll.insertOne(allData);
+      }
+
+      console.log("Information sent to db sucessfully.")
     }
 
     res.send(allDataJson)
@@ -199,7 +214,23 @@ app.get("/api/scrape/json", async (req, res) => {
 
   try {
     //Obtiene el JSON de investing
-    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-financial-summary`)
+    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
+    res.send(data)
+  }
+  catch (error){
+    console.error('Error doing scraping.', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+})
+
+//Este es mas de debugeo, devuelve todo el html
+app.get("/api/scrape/html", async (req, res) => {
+  if (!req.query.company) 
+    res.status(400).json({ error: 'You forgot to put your company dumbass' })
+
+  try {
+    //Obtiene el JSON de investing
+    const data = await getInvestingHTML(`https://www.investing.com/equities/${req.query.company}-historical-data`)
     res.send(data)
   }
   catch (error){
@@ -213,7 +244,8 @@ const PORT = Number(process.env.PORT) || 3001;
 async function startServer() {
   try {
     // Conectar a la base de datos (usa MONGODB_URI en backend/.env)
-    await connectToDatabase();
+    if (mongo_enabled)
+      await connectToDatabase();
 
     app.listen(PORT, () => {
       console.log(`Backend escuchando en puerto ${PORT}`);
@@ -223,7 +255,6 @@ async function startServer() {
     process.exit(1);
   }
 }
-
 
 startServer();
 
