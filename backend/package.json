@@ -15,6 +15,9 @@
     "graphql": "^16.8.1",
     "mongodb": "^5.7.0",
     "mongoose": "^7.6.0",
+    "puppeteer": "^23.7.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "selenium-webdriver": "^4.38.0"
   },
   "devDependencies": {
