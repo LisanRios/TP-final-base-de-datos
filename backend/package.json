@@ -8,6 +8,7 @@
     "dev": "nodemon src/app.ts"
   },
   "dependencies": {
+    "@huggingface/inference": "^4.13.3",
     "cheerio": "^1.1.2",
     "cors": "^2.8.5",
     "dotenv": "^16.0.0",
@@ -15,7 +16,7 @@
     "graphql": "^16.8.1",
     "mongodb": "^5.7.0",
     "mongoose": "^7.6.0",
-    "puppeteer": "^23.7.0",
+    "puppeteer": "^23.11.1",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "selenium-webdriver": "^4.38.0"

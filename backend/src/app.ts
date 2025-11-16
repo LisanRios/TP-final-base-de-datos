@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 // Cargar variables de entorno desde backend/.env en desarrollo
 import dotenv from 'dotenv';
+import { HfInference } from "@huggingface/inference";
 
 dotenv.config({ path: '.env' });
 import * as cheerio from "cheerio";
@@ -20,6 +21,9 @@ const BASE_INVESTING_HEADERS = {
   'Pragma': 'no-cache',
   'Referer': 'https://www.investing.com/'
 };
+function safeNum(x: any) {
+  return typeof x === "number" ? x : Number(x ?? 0);
+}
 
 const INVESTING_TIMEOUT_MS = 20000;
 const INVESTING_COOKIE = process.env.INVESTING_COOKIE ?? '';
@@ -170,6 +174,26 @@ async function fetchInvestingHTMLViaSelenium(url: string): Promise<string> {
   }
 }
 
+const hf = new HfInference(process.env.HF_TOKEN);
+
+async function vectorizarTexto(text: string): Promise<number[]> {
+  const response = await hf.featureExtraction({
+    model: "intfloat/e5-small-v2",
+    inputs: text,
+    pooling: "mean",
+    normalize: true
+  });
+
+  return response as number[];
+}
+
+function generarTextoDiario(company: any, date: any, raw: any): string {
+  return `El día ${date} la acción ${company} abrió en ${raw.last_open}, ` +
+         `alcanzó un máximo de ${raw.last_max}, un mínimo de ${raw.last_min} ` +
+         `y cerró en ${raw.last_close}. El volumen operado fue ${raw.volume} ` +
+         `y la variación diaria fue ${raw.change}%.`;
+}
+
 async function waitForNextData(driver: WebDriver, timeoutMs: number) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -286,10 +310,33 @@ app.get("/api/scrape/company", async (req, res) => {
 
     //Le saca los colores y datos innecesarios
     historicalData = removeKeyFromArray(historicalData, "direction_color")
+    // Vectorizamos uno por uno (sin romper orden)
+const historicalWithText: any[] = [];
+for (const day of historicalData) {
+  const raw = {
+  last_close: safeNum(day.last_closeRaw ?? day.last_close),
+  last_open: safeNum(day.last_openRaw ?? day.last_open),
+  last_max: safeNum(day.last_maxRaw ?? day.last_max),
+  last_min: safeNum(day.last_minRaw ?? day.last_min),
+  volume: safeNum(day.volumeRaw ?? day.volume),
+  change: safeNum(day.change_percentRaw ?? day.change_percent ?? day.change) // OJO
+};
+
+  const text = generarTextoDiario(req.query.company, day.rowDate, raw);
+
+  const vector = await vectorizarTexto(text); // ✅ AQUÍ SE GENERA EL EMBEDDING
+
+  historicalWithText.push({
+    date: day.rowDateRaw,
+    raw,
+    text,
+    vector
+  });
+}
 
     let allData = {
       company: req.query.company,
-      historicalData: historicalData,
+      historicalData: historicalWithText,
       technicalData: technicalData,
       financialData: financialData,
       createdAt: new Date()
