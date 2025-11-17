@@ -34,6 +34,37 @@ puppeteer.use(StealthPlugin());
 
 const mongo_enabled = true
 
+function normalizarFecha(query: string) {
+  const meses: Record<string, number> = {
+    enero: 1,
+    febrero: 2,
+    marzo: 3,
+    abril: 4,
+    mayo: 5,
+    junio: 6,
+    julio: 7,
+    agosto: 8,
+    septiembre: 9,
+    octubre: 10,
+    noviembre: 11,
+    diciembre: 12
+  };
+
+  const regex =
+    /(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i;
+
+  const match = query.match(regex);
+  if (!match) return null;
+
+  const day = match[1];
+  const month = meses[match[2].toLowerCase()];
+
+  // si querés manejar el año, vos decidís:
+  const year = new Date().getFullYear();
+
+  return `${year}-${month.toString().padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
 
 async function getInvestingData(url: string): Promise<string> {
   //Obtiene el JSON de investing
@@ -98,7 +129,10 @@ async function fetchInvestingHTMLViaPuppeteer(url: string): Promise<string> {
       ...(INVESTING_COOKIE ? { Cookie: INVESTING_COOKIE } : {})
     });
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: INVESTING_TIMEOUT_MS });
+    // Ir a la página
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: INVESTING_TIMEOUT_MS });
+
+    // Cerrar pop-ups y cookies
     await page.evaluate(() => {
       const cookieBtn = document.querySelector('#onetrust-accept-btn-handler');
       cookieBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -106,8 +140,21 @@ async function fetchInvestingHTMLViaPuppeteer(url: string): Promise<string> {
       dialogClose?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    await page.waitForSelector('#__NEXT_DATA__', { timeout: INVESTING_TIMEOUT_MS });
-    return await page.content();
+    // Espera explícita hasta que aparezca el JSON
+    let nextData: string | null = null;
+    const start = Date.now();
+    while (!nextData && Date.now() - start < INVESTING_TIMEOUT_MS) {
+      nextData = await page.evaluate(() => {
+        const script = document.querySelector('#__NEXT_DATA__');
+        return script ? script.textContent : null;
+      });
+      if (!nextData) await new Promise(r => setTimeout(r, 500));
+
+    }
+
+    if (!nextData) throw new Error('No se pudo encontrar __NEXT_DATA__ en la página');
+
+    return await page.content(); // Devuelve el HTML completo
   } finally {
     await browser.close();
   }
@@ -178,7 +225,7 @@ const hf = new HfInference(process.env.HF_TOKEN);
 
 async function vectorizarTexto(text: string): Promise<number[]> {
   const response = await hf.featureExtraction({
-    model: "intfloat/e5-small-v2",
+    model: "sentence-transformers/all-MiniLM-L6-v2",
     inputs: text,
     pooling: "mean",
     normalize: true
@@ -249,6 +296,221 @@ app.post('/api/chat', async (req, res) => {
     }
   }
 
+  if (query.toLowerCase().startsWith('/estado')) {
+
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  console.log("\n=========================");
+  console.log(">>> ENTRÓ A /estado");
+  console.log("=========================\n");
+
+  console.log(">>> QUERY RAW:", JSON.stringify(query));
+  console.log(">>> QUERY LOWER:", query.toLowerCase());
+
+  // =======================
+  // 1) NORMALIZACIÓN FECHA
+  // =======================
+  const dateNormalized = normalizarFecha(query);
+  console.log(">>> Fecha normalizada:", dateNormalized);
+
+  let queryProcesada = query;
+  if (dateNormalized) {
+    queryProcesada = query + ` (fecha normalizada: ${dateNormalized})`;
+    console.log(">>> Query procesada:", queryProcesada);
+  }
+
+  try {
+    console.log("\n--- 1) Conectando a DB ---");
+    const db = getDb();
+
+    const companies = await db.collection("companies").find().toArray();
+
+    console.log(">>> Empresas en DB:", companies.map(c => c.company));
+    const names = companies.map(c => c.company.toLowerCase());
+    console.log(">>> Nombres normalizados:", names);
+
+    const empresa = names.find(n => query.toLowerCase().includes(n));
+    console.log(">>> Empresa detectada:", empresa);
+
+    if (!empresa) {
+      console.log("❌ No se detectó empresa en la query");
+      return res.status(400).json({ error: "No pude detectar la empresa en la query." });
+    }
+
+    console.log("\n--- 2) Buscando documento de empresa ---");
+    const companyDoc = companies.find(c => c.company.toLowerCase() === empresa);
+    console.log(">>> Documento empresa encontrado:", !!companyDoc);
+
+    if (!companyDoc) {
+      console.log("❌ No existe companyDoc para", empresa);
+      return res.status(404).json({ error: `No se encontraron datos para la empresa ${empresa}` });
+    }
+
+    console.log("\n--- 3) Vectorizando query ---");
+    console.log(">>> Texto enviado a vectorizar:", queryProcesada);
+
+    // vectorizamos la query normalizada
+    const queryVector = await vectorizarTexto(queryProcesada);
+
+    console.log(">>> Vector query (primeros 5 valores):", queryVector.slice(0, 5));
+    console.log(">>> Largo del vector de query:", queryVector.length);
+
+    console.log("\n--- 4) Buscando día más parecido ---");
+
+    // --- 4) Buscar día (primero exacto por fecha, si no → embeddings) ---
+const historicalData = companyDoc.historicalData;
+console.log(">>> Cantidad de días en DB:", historicalData.length);
+
+// 1) Normalizamos fecha desde la query (usa tu función normalizarFecha)
+const normalized = normalizarFecha(query); // devuelve 'YYYY-MM-DD' o null
+console.log(">>> Fecha normalizada:", normalized);
+
+// helper: convierte diferentes formatos de day.date -> 'YYYY-MM-DD'
+function dateToISO(d: any): string | null {
+  if (d == null) return null;
+
+  // number (posible timestamp en segundos o ms)
+  if (typeof d === "number") {
+    // detectar si es segundos (10 dígitos) o ms (13 dígitos)
+    const ts = d < 1e12 ? d * 1000 : d;
+    const dt = new Date(ts);
+    if (!isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+    return null;
+  }
+
+  // string: puede ser '2025-11-14', 'Nov 14, 2025', '14 Nov 2025', etc.
+  if (typeof d === "string") {
+    // Si ya es 'YYYY-MM-DD'
+    const isoMatch = /^\d{4}-\d{2}-\d{2}$/.test(d.trim());
+    if (isoMatch) return d.trim();
+
+    // Intentar parsear con Date
+    const parsed = new Date(d);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+
+    // intentar parsear cadenas tipo 'Nov 14, 2025' reemplazando coma
+    const parsed2 = new Date(d.replace(/,/g, ''));
+    if (!isNaN(parsed2.getTime())) return parsed2.toISOString().slice(0, 10);
+  }
+
+  return null;
+}
+
+// 1st: buscar match exacto por fecha normalizada
+let bestMatch = null;
+let bestScore = -Infinity;
+
+if (normalized) {
+  console.log(">>> Intentando match exacto por fecha (ISO)...");
+  bestMatch = historicalData.find((day: any) => {
+    const dayIso = dateToISO(day.date);
+    return dayIso === normalized;
+  });
+
+  if (bestMatch) {
+    console.log(">>> Match exacto encontrado (por fecha):", dateToISO(bestMatch.date));
+  } else {
+    console.log(">>> No se encontró match exacto por fecha.");
+
+  }
+    }
+// 2nd: fallback embeddings (si no hubo match exacto)
+if (!bestMatch) {
+  // generar vector de la query (ya lo tenés arriba; si no, vectorizar aquí)
+  const queryVector = await vectorizarTexto(query);
+  console.log(">>> Vector query (primeros 5):", queryVector.slice(0,5));
+
+  function cosineSim(a: number[], b: number[]): number {
+    if (!a || !b || a.length !== b.length) return -1;
+    let dot = 0, normA = 0, normB = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    if (normA === 0 || normB === 0) return -1;
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
+
+  let index = 0;
+  for (const day of historicalData) {
+    // skip si no hay vector guardado
+    if (!day.vector || !Array.isArray(day.vector)) {
+      console.log(`>>> Día #${index} (${day.date}) sin vector; saltando.`);
+      index++;
+      continue;
+    }
+    const score = cosineSim(queryVector, day.vector);
+    console.log(`>>> Día #${index} (${dateToISO(day.date) ?? day.date}) → score:`, score);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = day;
+    }
+    index++;
+  }
+
+  console.log(">>> Mejor score por embeddings:", bestScore);
+}
+
+if (!bestMatch) {
+  console.log("❌ No se encontró ningún match (ni exacto ni por embeddings).");
+  return res.status(404).json({ error: "No se encontró un día similar a la query" });
+}
+
+console.log("\n>>> BEST MATCH RESULT:");
+console.log("· Día (ISO):", dateToISO(bestMatch.date));
+console.log("· Día raw:", bestMatch.date);
+console.log("· Texto:", bestMatch.text);
+
+    if (!bestMatch) {
+      console.log("❌ No se encontró ningún día similar.");
+      return res.status(404).json({ error: "No se encontró un día similar a la query" });
+    }
+
+    console.log("\n--- 5) Llamando al modelo ---");
+    
+    console.log(">>> API KEY cargada:", !!apiKey);
+
+    const bodyPayload = {
+      model: "deepseek/deepseek-chat-v3.1:free",
+      messages: [
+        {
+          role: "user",
+          content:
+            `Contexto recuperado de la base:\n` +
+            `Empresa: ${empresa}\n` +
+            `Día detectado: ${bestMatch.date}\n` +
+            `Datos del día:\n${bestMatch.text}\n\n`
+        },
+        {
+          role: "user",
+          content: queryProcesada
+        }
+      ],
+    };
+
+    console.log(">>> Payload enviado:", JSON.stringify(bodyPayload, null, 2));
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(bodyPayload),
+    });
+
+    const data = await response.json();
+
+    console.log(">>> RESPUESTA DEL MODELO:", data);
+
+    return res.json({ response: data.choices[0].message.content });
+
+  } catch (err) {
+    console.error("\n❌ ERROR en bloque /estado:", err, "\n");
+    return res.status(500).json({ error: "Error interno al procesar la query" });
+  }
+}
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
    return res.status(500).json({ error: 'API key not configured' });
@@ -326,8 +588,10 @@ for (const day of historicalData) {
 
   const vector = await vectorizarTexto(text); // ✅ AQUÍ SE GENERA EL EMBEDDING
 
+  const normalizedDate = new Date(day.rowDate).toISOString().split("T")[0];
+
   historicalWithText.push({
-    date: day.rowDateRaw,
+    date: normalizedDate,
     raw,
     text,
     vector
