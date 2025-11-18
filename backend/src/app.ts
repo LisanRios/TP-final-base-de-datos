@@ -5,27 +5,6 @@ import * as cheerio from "cheerio";
 import chatRoutes from './routes/chat.routes';
 import analysisRoutes from './routes/analysis.routes';
 import { connectToDatabase, closeDatabaseConnection } from './db';
-import { connectToDatabase, closeDatabaseConnection, getDb } from './db';
-
-//test
-
-async function getInvestingData(url: string): Promise<string> {
-  //Obtiene el JSON de investing
-    const data = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'x-requested-with': `XMLHttpRequest`
-      }
-    }).then(response => {
-      return response.text()
-    }).then(html => {
-      const $ = cheerio.load(html);
-      const next_data_json = $("#__NEXT_DATA__").text()
-      return next_data_json
-    })
-
-    return data
-}
 
 function removeKeyFromArray<T extends Record<string, any>>(
   arr: T[],
@@ -53,16 +32,24 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/analysis', analysisRoutes);
 
 // Funciones de scraping
+
+//test
 async function getInvestingData(url: string): Promise<string> {
-  const data = await fetch(url, {
-    method: 'POST',
-    headers: { 'x-requested-with': `XMLHttpRequest` }
-  }).then(r => r.text())
-    .then(html => {
+  //Obtiene el JSON de investing
+    const data = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-requested-with': `XMLHttpRequest`
+      }
+    }).then(response => {
+      return response.text()
+    }).then(html => {
       const $ = cheerio.load(html);
-      return $("#__NEXT_DATA__").text();
-    });
-  return data;
+      const next_data_json = $("#__NEXT_DATA__").text()
+      return next_data_json
+    })
+
+    return data
 }
 
 app.get("/api/scrape/historical", async (req, res) => {
@@ -129,9 +116,6 @@ app.get("/api/scrape/indexes", async (req, res) => {
   }
 });
 
-const PORT = Number(ENV.PORT) || 3001;
-})
-
 const PORT = Number(process.env.PORT) || 3001;
 
 async function startServer() {
@@ -147,7 +131,6 @@ async function startServer() {
     process.exit(1);
   }
 }
-
 
 startServer();
 
