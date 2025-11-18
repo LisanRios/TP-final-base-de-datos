@@ -16,9 +16,6 @@ export class AnalysisService {
     private graphs = new GraphAdapterService();
     private companySvc = new CompanyService();
 
-    // ===========================================
-    //  NEW: getAll()   (lo usaba el controller)
-    // ===========================================
     async getAll(): Promise<AnalysisEntity[]> {
         const db = getDb();
         return db.collection<AnalysisEntity>(this.col)
@@ -47,9 +44,6 @@ export class AnalysisService {
             .next();
     }
 
-    // -------------------------------------------
-    // INDICADORES BÁSICOS
-    // -------------------------------------------
     private buildIndicators(company: CompanyEntity): AnalysisIndicators {
         const hist = company.historicalData;
         if (!hist || hist.length < 2) {
@@ -85,9 +79,6 @@ export class AnalysisService {
         };
     }
 
-    // ===========================================
-    //  NEW: getOrCreateAnalysisForCompany()
-    // ===========================================
     async getOrCreateAnalysisForCompany(slug: string, forcedGraph?: ChartType) {
         // 1) buscar company en mongo
         const company = await this.companySvc.findBySlug(slug);
@@ -105,9 +96,6 @@ export class AnalysisService {
         return this.generateAndSave(company, "auto", forcedGraph);
     }
 
-    // -------------------------------------------
-    // GENERAR NUEVO ANALYSIS
-    // -------------------------------------------
     async generateAndSave(company: CompanyEntity, query: string, forcedGraph?: ChartType) {
         const db = getDb();
         const col = db.collection<AnalysisEntity>(this.col);
@@ -148,9 +136,6 @@ export class AnalysisService {
         return analysis;
     }
 
-    // -------------------------------------------
-    // Agregar más gráficos después
-    // -------------------------------------------
     async generateGraphForAnalysis(analysisId: string, graph: ChartType) {
         const existing = await this.getById(analysisId);
         if (!existing) throw new Error("Analysis not found");

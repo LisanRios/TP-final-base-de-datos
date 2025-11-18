@@ -12,16 +12,9 @@ import chrome from 'selenium-webdriver/chrome';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
-// ===========================================
-//  👇 1. IMPORTAMOS TUS RUTAS MODULARES
-// ===========================================
 import chatRoutes from './routes/chat.routes';
 import analysisRoutes from './routes/analysis.routes';
 
-
-// ===========================================
-//  (Aquí va todo tu código de scraping, helpers, etc. SIN CAMBIOS)
-// ===========================================
 
 const BASE_INVESTING_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
@@ -258,10 +251,6 @@ function removeKeyFromArray<T extends Record<string, any>>(
   );
 }
 
-// ===========================================
-//  CONFIGURACIÓN DE EXPRESS
-// ===========================================
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -270,10 +259,6 @@ app.get('/', (req, res) => {
   res.send('API TP Final Base de Datos funcionando');
 });
 
-
-// ===========================================
-//  👇 2. USAMOS LAS RUTAS MODULARES
-// ===========================================
 /*
  * Ahora, cualquier petición a /api/chat (POST) será manejada 
  * por 'chatRoutes', que a su vez llama al 'ChatOrchestrator'.
@@ -281,28 +266,15 @@ app.get('/', (req, res) => {
  */
 app.use('/api/chat', chatRoutes);
 
-/*
- * Dejamos conectadas las rutas de /api/analysis por si las necesitas
- * (ej. para ver un análisis por ID)
- */
+
 app.use('/api/analysis', analysisRoutes);
 
-
-// ===========================================
-//  👇 3. EL BLOQUE CONFLICTIVO app.post('/api/chat') FUE ELIMINADO
-// ===========================================
-
-
-// ===========================================
-//  RUTAS DE SCRAPING (Sin cambios)
-// ===========================================
 
 app.get("/api/scrape/company", async (req, res) => {
   if (!req.query.company) 
     res.status(400).json({ error: 'You forgot to put your company dumbass' })
 
   try {
-    // ... (tu código de scraping de compañía)
     //Extraccion de datos
     const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
 
@@ -417,10 +389,6 @@ app.get("/api/scrape/html", async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 })
-
-// ===========================================
-//  INICIO DEL SERVIDOR
-// ===========================================
 
 const PORT = Number(process.env.PORT) || 3001;
 

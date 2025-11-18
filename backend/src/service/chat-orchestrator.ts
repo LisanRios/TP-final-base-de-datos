@@ -7,27 +7,25 @@ import { CompanyService } from "./company.service"; // <-- NECESARIO
 import { AnalysisEntity } from "../models/analysis.types"; // <-- ÚTIL
 
 // Instanciamos todos los servicios que necesitamos
-const chatService = new ChatService(process.env.OPENROUTER_API_KEY!);
+const chatService = new ChatService(process.env.OPENROUTER_API_KEY);
 const analysisService = new AnalysisService();
 const companyService = new CompanyService(); // <-- NECESARIO
 
 export class ChatOrchestrator {
     
     static async handleQuery(query: string): Promise<ChatEntity> {
+        console.log("[handleQuery] query recibida:", query);
 
         // 1. Buscar la compañía relevante según la consulta
-        //    (usamos el servicio que ya tenías para esto)
         const company = await companyService.searchByTerm(query);
 
         // 2. Si no encontramos compañía (o la consulta es genérica como "hola")
-        //    Simplemente respondemos con la IA en modo genérico, sin contexto.
         if (!company) {
             // chatService.askAI ya devuelve un ChatEntity (solo con texto)
             return await chatService.askAI(query);
         }
 
         // 3. Si encontramos compañía, buscamos un análisis (CACHÉ)
-        //    (Asumimos que "getLatestForCompany" es suficientemente rápido)
         let analysis: AnalysisEntity | null = null;
         
         try {
@@ -51,7 +49,6 @@ export class ChatOrchestrator {
         }
 
         // 5. CONSTRUIR EL CONTEXTO (El "Augmented" de RAG)
-        //    Ahora tenemos un análisis (de la caché o recién creado)
         const context = `
             Información de contexto para la compañía ${analysis.company} (generado el ${analysis.generatedAt}):
             Resumen de análisis: ${analysis.summary}
@@ -76,12 +73,9 @@ export class ChatOrchestrator {
         `;
 
         // 7. Llamar a la IA (ahora con superpoderes)
-        //    Esto nos devuelve un ChatEntity que solo tiene la propiedad 'text'
         const aiResponse = await chatService.askAI(finalQuery);
 
         // 8. ADJUNTAR DATOS A LA RESPUESTA
-        //    Modificamos el ChatEntity que nos dio la IA para adjuntarle
-        //    todos los datos del análisis que el frontend necesitará.
         aiResponse.company = analysis.company;
         aiResponse.analysisId = analysis._id?.toString(); // <-- MUY IMPORTANTE
         aiResponse.datasets = analysis.datasets;
@@ -90,6 +84,4 @@ export class ChatOrchestrator {
 
         return aiResponse;
     }
-
-    // (Aquí podrías agregar la lógica para follow-ups, como "dame otro gráfico")
 }

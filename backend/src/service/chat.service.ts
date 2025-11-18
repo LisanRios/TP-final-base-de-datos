@@ -6,7 +6,8 @@ export class ChatService {
 
     async askAI(query: string): Promise<ChatEntity> {
         const lowerQuery = query.toLowerCase().trim();
-    
+        console.log("[askAI] Ejecutando askAI con query:", query);
+
         // Modo real IA
         try {
             const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
