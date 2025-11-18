@@ -52,6 +52,7 @@ export interface AnalysisIndicators {
 export interface AnalysisEntity {
     _id?: string;
     company: string;
+    companyId: string;
     generatedAt: Date | string;
     summary: string;
 

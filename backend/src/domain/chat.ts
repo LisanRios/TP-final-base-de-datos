@@ -1,7 +1,23 @@
+import { 
+    AnalysisDatasets, 
+    AnalysisIndicators, 
+    ChartType 
+} from '../models/analysis.types';
+
 export class ChatEntity {
-    constructor(
-        public text: string,
-        public chart?: any,
-        public indicators?: { name: string; value: number | string }[]
-    ) {}
+    text: string;
+    
+    // Propiedades opcionales que "aumentan" la respuesta
+    company?: string;
+    analysisId?: string;
+    datasets?: AnalysisDatasets;
+    indicators?: AnalysisIndicators;
+    charts?: {
+        default: ChartType;
+        available: ChartType[];
+    };
+
+    constructor(text: string) {
+        this.text = text;
+    }
 }

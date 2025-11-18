@@ -19,8 +19,7 @@
     "puppeteer": "^23.11.1",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "selenium-webdriver": "^4.38.0"
-    "mongoose": "^7.6.0",
+    "selenium-webdriver": "^4.38.0",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {

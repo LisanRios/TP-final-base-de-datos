@@ -32,6 +32,6 @@ export class CompanyService {
 
         return db
             .collection<CompanyEntity>(this.col)
-            .findOne({ _id: new ObjectId(id) });
+            .findOne({ _id: id });
     }
 }

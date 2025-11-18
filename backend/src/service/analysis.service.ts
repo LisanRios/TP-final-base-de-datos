@@ -5,17 +5,27 @@ import { CompanyEntity } from "../models/company.types";
 import {
     AnalysisEntity,
     AnalysisIndicators,
-    AnalysisDatasets,
     ChartType
 } from "../models/analysis.types";
 
 import { CompanyService } from "./company.service";
-import { GraphService } from "./graph.service";
+import { GraphAdapterService } from "./graph-adapter.service";
 
 export class AnalysisService {
     private col = "analysis";
-    private graphSvc = new GraphService();
+    private graphs = new GraphAdapterService();
     private companySvc = new CompanyService();
+
+    // ===========================================
+    //  NEW: getAll()   (lo usaba el controller)
+    // ===========================================
+    async getAll(): Promise<AnalysisEntity[]> {
+        const db = getDb();
+        return db.collection<AnalysisEntity>(this.col)
+            .find()
+            .sort({ generatedAt: -1 })
+            .toArray();
+    }
 
     async getById(id: string): Promise<AnalysisEntity | null> {
         const db = getDb();
@@ -23,7 +33,7 @@ export class AnalysisService {
 
         return db
             .collection<AnalysisEntity>(this.col)
-            .findOne({ _id: new ObjectId(id) });
+            .findOne({ _id: id })
     }
 
     async getLatestForCompany(companyId: string): Promise<AnalysisEntity | null> {
@@ -31,15 +41,15 @@ export class AnalysisService {
         const collection = db.collection<AnalysisEntity>(this.col);
 
         return collection
-            .find({ companyId: new ObjectId(companyId) })
+            .find({ companyId })
             .sort({ generatedAt: -1 })
             .limit(1)
             .next();
     }
 
-    /*
-        Construye un AnalysisEntity completo a partir del CompanyEntity.
-     */
+    // -------------------------------------------
+    // INDICADORES BÁSICOS
+    // -------------------------------------------
     private buildIndicators(company: CompanyEntity): AnalysisIndicators {
         const hist = company.historicalData;
         if (!hist || hist.length < 2) {
@@ -58,40 +68,67 @@ export class AnalysisService {
         const variationPct = ((last - first) / first) * 100;
         const trend = variationPct > 0 ? "alcista" : variationPct < 0 ? "bajista" : "neutral";
 
-        const volValues = hist.map(h => Number(h.change_precentRaw)).filter(v => !isNaN(v));
-        const volatility = volValues.length ? Math.max(...volValues) - Math.min(...volValues) : 0;
+        const volValues = hist
+            .map(h => Number(h.change_precentRaw))
+            .filter(v => !isNaN(v));
+
+        const volatility = volValues.length
+            ? Math.max(...volValues) - Math.min(...volValues)
+            : 0;
 
         return {
-            rsi: 50,              // placeholder hasta cálculo real
-            macd: 0,              // placeholder
-            adx: 20,              // placeholder
+            rsi: 50,     // placeholders hasta implementar
+            macd: 0,
+            adx: 20,
             volatility,
             trend
         };
     }
 
-    /*
-        Genera y guarda un análisis completo.
-     */
+    // ===========================================
+    //  NEW: getOrCreateAnalysisForCompany()
+    // ===========================================
+    async getOrCreateAnalysisForCompany(slug: string, forcedGraph?: ChartType) {
+        // 1) buscar company en mongo
+        const company = await this.companySvc.findBySlug(slug);
+        if (!company) {
+            throw new Error(`Company '${slug}' not found`);
+        }
+
+        // 2) buscar análisis más nuevo
+        const existing = await this.getLatestForCompany(company._id.toString());
+        if (existing) {
+            return existing;
+        }
+
+        // 3) si no existe → generarlo
+        return this.generateAndSave(company, "auto", forcedGraph);
+    }
+
+    // -------------------------------------------
+    // GENERAR NUEVO ANALYSIS
+    // -------------------------------------------
     async generateAndSave(company: CompanyEntity, query: string, forcedGraph?: ChartType) {
         const db = getDb();
         const col = db.collection<AnalysisEntity>(this.col);
 
-        // Indicadores financieros
+        // 1) Indicadores
         const indicators = this.buildIndicators(company);
 
-        // Datasets para gráficos
-        const datasets = this.graphSvc.buildDatasets(company);
+        // 2) Datasets
+        const datasets = this.graphs.buildDatasets(company);
 
-        // Determinar gráfico default
+        // 3) Gráfico default según datos
         const defaultGraph: ChartType =
             forcedGraph ??
-            this.graphSvc.autoSelectGraph(company, datasets);
+            this.graphs.autoSelectGraph(company, datasets);
 
+        // 4) Resumen básico
         const summary =
             `${company.company} tiene una tendencia ${indicators.trend} ` +
             `y una volatilidad de ${indicators.volatility.toFixed(2)}%.`;
 
+        // 5) Crear entity
         const analysis: AnalysisEntity = {
             company: company.company,
             companyId: company._id.toString(),
@@ -99,7 +136,7 @@ export class AnalysisService {
             summary,
             charts: {
                 default: defaultGraph,
-                available: this.graphSvc.availableGraphs(datasets)
+                available: this.graphs.availableGraphs(datasets)
             },
             datasets,
             indicators
@@ -111,9 +148,9 @@ export class AnalysisService {
         return analysis;
     }
 
-    /*
-        Genera un gráfico adicional y lo agrega a un analysis ya existente.
-     */
+    // -------------------------------------------
+    // Agregar más gráficos después
+    // -------------------------------------------
     async generateGraphForAnalysis(analysisId: string, graph: ChartType) {
         const existing = await this.getById(analysisId);
         if (!existing) throw new Error("Analysis not found");
@@ -121,7 +158,7 @@ export class AnalysisService {
         const company = await this.companySvc.findBySlug(existing.company);
         if (!company) throw new Error("Company not found");
 
-        const datasets = this.graphSvc.buildDatasets(company);
+        const datasets = this.graphs.buildDatasets(company);
 
         existing.charts.available.push(graph);
         existing.datasets = datasets;
@@ -129,7 +166,7 @@ export class AnalysisService {
 
         const db = getDb();
         await db.collection<AnalysisEntity>(this.col).updateOne(
-            { _id: new ObjectId(analysisId) },
+            { _id: analysisId },
             { $set: existing }
         );
 

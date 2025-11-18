@@ -1,21 +1,23 @@
-import { OHLC } from "../models/company.types";
-import { GraphPayload, GraphType } from "../models/analysis.types";
+import { HistoricalDataEntry } from "../models/company.types";
+import { ChartType } from "../models/analysis.types";
 
-function buildLine(h: OHLC[]): GraphPayload {
-    const labels = h.map(d => d.date);
-    const values = h.map(d => d.close ?? 0);
+type GraphPayload = any;
+
+function buildLine(h: HistoricalDataEntry[]): GraphPayload {
+    const labels = h.map(d => d.rowDate);
+    const values = h.map(d => d.last_closeRaw ?? 0);
     return { type: "line", title: "Precio (Close)", data: { labels, values } };
 }
 
-function buildBarVolume(h: OHLC[]): GraphPayload {
-    const labels = h.map(d => d.date);
-    const values = h.map(d => d.volume ?? 0);
+function buildBarVolume(h: HistoricalDataEntry[]): GraphPayload {
+    const labels = h.map(d => d.rowDate);
+    const values = h.map(d => d.last_closeRaw ?? 0);
     return { type: "bar", title: "Volumen", data: { labels, values } };
     }
 
-function buildArea(h: OHLC[]): GraphPayload {
-    const labels = h.map(d => d.date);
-    const values = h.map(d => d.close ?? 0);
+function buildArea(h: HistoricalDataEntry[]): GraphPayload {
+    const labels = h.map(d => d.rowDate);
+    const values = h.map(d => d.last_closeRaw ?? 0);
     return { type: "area", title: "Área: Precio", data: { labels, values } };
 }
 
@@ -26,27 +28,27 @@ function buildPieFromFinancial(fin: any): GraphPayload {
     return { type: "pie", title: "Distribución", data: { labels, values } };
 }
 
-function buildCandlestick(h: OHLC[]): GraphPayload {
+function buildCandlestick(h: HistoricalDataEntry[]): GraphPayload {
     const data = h.map((d, i) => ({
-        date: d.date,
-        open: d.open ?? d.close,
-        high: d.high ?? d.close,
-        low: d.low ?? d.close,
-        close: d.close ?? 0,
+        date: d.rowDate,
+        open: d.last_openRaw ?? d.last_closeRaw,
+        high: d.last_maxRaw ?? d.last_closeRaw,
+        low: d.last_minRaw ?? d.last_closeRaw,
+        close: d.last_closeRaw ?? 0,
     }));
     return { type: "candlestick", title: "Candlestick", data };
 }
 
-export function chooseGraphType(autoPrefer: "price" | "volume" | "composition", hist?: OHLC[], fin?: any): GraphType {
+export function chooseGraphType(autoPrefer: "price" | "volume" | "composition", hist?: HistoricalDataEntry[], fin?: any): ChartType {
     if (autoPrefer === "volume") return "bar";
     if (autoPrefer === "composition") return "pie";
-    if (hist && hist.length > 0 && (hist[0].open !== undefined && hist[0].high !== undefined)) return "candlestick";
+    if (hist && hist.length > 0 && (hist[0].last_openRaw !== undefined && hist[0].last_maxRaw !== undefined)) return "candlestick";
     return "line";
 }
 
 export class GraphService {
-    generate(graphType: GraphType, companyData: any): GraphPayload {
-        const h = companyData.historicalData as OHLC[] | undefined;
+    generate(graphType: ChartType, companyData: any): GraphPayload {
+        const h = companyData.historicalData as HistoricalDataEntry[] | undefined;
         const fin = companyData.financialData;
         switch (graphType) {
             case "line": return buildLine(h ?? []);
