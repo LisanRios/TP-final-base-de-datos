@@ -1,2 +1,4 @@
 # dependencias
 /node_modules
+.env
+venv/
