@@ -7,6 +7,9 @@ import { graphService } from '../services/graphService.ts';
 import { mockService } from "../services/mockService.ts";
 import '../styles/Chat.css';
 import  ExportChatButton  from "./ExportChatButton.tsx"
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
 
 export type Message = {
     content: string;
@@ -86,6 +89,10 @@ const Chat = () => {
                 parsed = null;
             }
 
+            
+
+            /* const cleanResponse = response.replace(/<\|?[^>]+?\|?>/g, '').trim(); */
+
             // Si viene un objeto JSON con gráfico y datos, renderizarlo
             if (parsed && typeof parsed === 'object' && parsed.graph_type && parsed.data) {
                 // Texto descriptivo opcional
@@ -141,8 +148,15 @@ const Chat = () => {
 
                 {messages.map((msg, i) => (
                     <div key={i} className={`message-wrapper ${msg.sender}`}>
-                        <div className={`message-bubble ${msg.sender}`}>
-                            {msg.content && <p>{msg.content}</p>}
+                        <div className={`message-bubble ${msg.sender} markdown-body`}>
+                            {msg.content && (
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    rehypePlugins={[rehypeRaw]}
+                                >
+                                    {msg.content}
+                                </ReactMarkdown>
+                                )}
 
                             {msg.graph_type && msg.data && (
                                 <div className="mt-3">

@@ -21,6 +21,7 @@ const BASE_INVESTING_HEADERS = {
   'Pragma': 'no-cache',
   'Referer': 'https://www.investing.com/'
 };
+
 function safeNum(x: any) {
   return typeof x === "number" ? x : Number(x ?? 0);
 }
@@ -28,6 +29,7 @@ function safeNum(x: any) {
 const INVESTING_TIMEOUT_MS = 20000;
 const INVESTING_COOKIE = process.env.INVESTING_COOKIE ?? '';
 const ENABLE_SELENIUM_FALLBACK = process.env.SCRAPER_ENABLE_SELENIUM === 'true';
+const MODEL = "tngtech/deepseek-r1t2-chimera:free";
 
 puppeteer.use(StealthPlugin());
 
@@ -269,6 +271,15 @@ app.get('/', (req, res) => {
   res.send('API TP Final Base de Datos funcionando');
 });
 
+function sanitizeModelOutput(text: string): string {
+  return text
+    .replace(/<\｜begin▁of▁sentence｜>/g, '')
+    .replace(/<\|begin_of_text\|>/g, '')
+    .replace(/<\|end_of_text\|>/g, '')
+    .trim();
+}
+
+
 // Ruta paranp chat general
 app.post('/api/chat', async (req, res) => {
   const { query } = req.body;
@@ -358,369 +369,370 @@ app.post('/api/chat', async (req, res) => {
     console.log("\n--- 4) Buscando día más parecido ---");
 
     // --- 4) Buscar día (primero exacto por fecha, si no → embeddings) ---
-const historicalData = companyDoc.historicalData;
-console.log(">>> Cantidad de días en DB:", historicalData.length);
+  const historicalData = companyDoc.historicalData;
+  console.log(">>> Cantidad de días en DB:", historicalData.length);
 
-// 1) Normalizamos fecha desde la query (usa tu función normalizarFecha)
-const normalized = normalizarFecha(query); // devuelve 'YYYY-MM-DD' o null
-console.log(">>> Fecha normalizada:", normalized);
+  // 1) Normalizamos fecha desde la query (usa tu función normalizarFecha)
+  const normalized = normalizarFecha(query); // devuelve 'YYYY-MM-DD' o null
+  console.log(">>> Fecha normalizada:", normalized);
 
-// helper: convierte diferentes formatos de day.date -> 'YYYY-MM-DD'
-function dateToISO(d: any): string | null {
-  if (d == null) return null;
+  // helper: convierte diferentes formatos de day.date -> 'YYYY-MM-DD'
+  function dateToISO(d: any): string | null {
+    if (d == null) return null;
 
-  // number (posible timestamp en segundos o ms)
-  if (typeof d === "number") {
-    // detectar si es segundos (10 dígitos) o ms (13 dígitos)
-    const ts = d < 1e12 ? d * 1000 : d;
-    const dt = new Date(ts);
-    if (!isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+    // number (posible timestamp en segundos o ms)
+    if (typeof d === "number") {
+      // detectar si es segundos (10 dígitos) o ms (13 dígitos)
+      const ts = d < 1e12 ? d * 1000 : d;
+      const dt = new Date(ts);
+      if (!isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+      return null;
+    }
+
+    // string: puede ser '2025-11-14', 'Nov 14, 2025', '14 Nov 2025', etc.
+    if (typeof d === "string") {
+      // Si ya es 'YYYY-MM-DD'
+      const isoMatch = /^\d{4}-\d{2}-\d{2}$/.test(d.trim());
+      if (isoMatch) return d.trim();
+
+      // Intentar parsear con Date
+      const parsed = new Date(d);
+      if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+
+      // intentar parsear cadenas tipo 'Nov 14, 2025' reemplazando coma
+      const parsed2 = new Date(d.replace(/,/g, ''));
+      if (!isNaN(parsed2.getTime())) return parsed2.toISOString().slice(0, 10);
+    }
+
     return null;
   }
 
-  // string: puede ser '2025-11-14', 'Nov 14, 2025', '14 Nov 2025', etc.
-  if (typeof d === "string") {
-    // Si ya es 'YYYY-MM-DD'
-    const isoMatch = /^\d{4}-\d{2}-\d{2}$/.test(d.trim());
-    if (isoMatch) return d.trim();
+  // 1st: buscar match exacto por fecha normalizada
+  let bestMatch = null;
+  let bestScore = -Infinity;
 
-    // Intentar parsear con Date
-    const parsed = new Date(d);
-    if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
-
-    // intentar parsear cadenas tipo 'Nov 14, 2025' reemplazando coma
-    const parsed2 = new Date(d.replace(/,/g, ''));
-    if (!isNaN(parsed2.getTime())) return parsed2.toISOString().slice(0, 10);
-  }
-
-  return null;
-}
-
-// 1st: buscar match exacto por fecha normalizada
-let bestMatch = null;
-let bestScore = -Infinity;
-
-if (normalized) {
-  console.log(">>> Intentando match exacto por fecha (ISO)...");
-  bestMatch = historicalData.find((day: any) => {
-    const dayIso = dateToISO(day.date);
-    return dayIso === normalized;
-  });
-
-  if (bestMatch) {
-    console.log(">>> Match exacto encontrado (por fecha):", dateToISO(bestMatch.date));
-  } else {
-    console.log(">>> No se encontró match exacto por fecha.");
-
-  }
-    }
-// 2nd: fallback embeddings (si no hubo match exacto)
-if (!bestMatch) {
-  // generar vector de la query (ya lo tenés arriba; si no, vectorizar aquí)
-  const queryVector = await vectorizarTexto(query);
-  console.log(">>> Vector query (primeros 5):", queryVector.slice(0,5));
-
-  function cosineSim(a: number[], b: number[]): number {
-    if (!a || !b || a.length !== b.length) return -1;
-    let dot = 0, normA = 0, normB = 0;
-    for (let i = 0; i < a.length; i++) {
-      dot += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-    if (normA === 0 || normB === 0) return -1;
-    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-  }
-
-  let index = 0;
-  for (const day of historicalData) {
-    // skip si no hay vector guardado
-    if (!day.vector || !Array.isArray(day.vector)) {
-      console.log(`>>> Día #${index} (${day.date}) sin vector; saltando.`);
-      index++;
-      continue;
-    }
-    const score = cosineSim(queryVector, day.vector);
-    console.log(`>>> Día #${index} (${dateToISO(day.date) ?? day.date}) → score:`, score);
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = day;
-    }
-    index++;
-  }
-
-  console.log(">>> Mejor score por embeddings:", bestScore);
-}
-
-if (!bestMatch) {
-  console.log("❌ No se encontró ningún match (ni exacto ni por embeddings).");
-  return res.status(404).json({ error: "No se encontró un día similar a la query" });
-}
-
-console.log("\n>>> BEST MATCH RESULT:");
-console.log("· Día (ISO):", dateToISO(bestMatch.date));
-console.log("· Día raw:", bestMatch.date);
-console.log("· Texto:", bestMatch.text);
-
-    if (!bestMatch) {
-      console.log("❌ No se encontró ningún día similar.");
-      return res.status(404).json({ error: "No se encontró un día similar a la query" });
-    }
-
-    console.log("\n--- 5) Llamando al modelo ---");
-    
-    console.log(">>> API KEY cargada:", !!apiKey);
-
-    const bodyPayload = {
-      model: "deepseek/deepseek-chat-v3.1:free",
-      messages: [
-        {
-          role: "user",
-          content:
-            `Contexto recuperado de la base:\n` +
-            `Empresa: ${empresa}\n` +
-            `Día detectado: ${bestMatch.date}\n` +
-            `Datos del día:\n${bestMatch.text}\n\n`
-        },
-        {
-          role: "user",
-          content: queryProcesada
-        }
-      ],
-    };
-
-    console.log(">>> Payload enviado:", JSON.stringify(bodyPayload, null, 2));
-
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(bodyPayload),
+  if (normalized) {
+    console.log(">>> Intentando match exacto por fecha (ISO)...");
+    bestMatch = historicalData.find((day: any) => {
+      const dayIso = dateToISO(day.date);
+      return dayIso === normalized;
     });
 
-    const data = await response.json();
+    if (bestMatch) {
+      console.log(">>> Match exacto encontrado (por fecha):", dateToISO(bestMatch.date));
+    } else {
+      console.log(">>> No se encontró match exacto por fecha.");
 
-    console.log(">>> RESPUESTA DEL MODELO:", data);
+    }
+      }
+  // 2nd: fallback embeddings (si no hubo match exacto)
+  if (!bestMatch) {
+    // generar vector de la query (ya lo tenés arriba; si no, vectorizar aquí)
+    const queryVector = await vectorizarTexto(query);
+    console.log(">>> Vector query (primeros 5):", queryVector.slice(0,5));
 
-    return res.json({ response: data.choices[0].message.content });
+    function cosineSim(a: number[], b: number[]): number {
+      if (!a || !b || a.length !== b.length) return -1;
+      let dot = 0, normA = 0, normB = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+      }
+      if (normA === 0 || normB === 0) return -1;
+      return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
 
-  } catch (err) {
-    console.error("\n❌ ERROR en bloque /estado:", err, "\n");
-    return res.status(500).json({ error: "Error interno al procesar la query" });
+    let index = 0;
+    for (const day of historicalData) {
+      // skip si no hay vector guardado
+      if (!day.vector || !Array.isArray(day.vector)) {
+        console.log(`>>> Día #${index} (${day.date}) sin vector; saltando.`);
+        index++;
+        continue;
+      }
+      const score = cosineSim(queryVector, day.vector);
+      console.log(`>>> Día #${index} (${dateToISO(day.date) ?? day.date}) → score:`, score);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = day;
+      }
+      index++;
+    }
+
+    console.log(">>> Mejor score por embeddings:", bestScore);
   }
-}
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-   return res.status(500).json({ error: 'API key not configured' });
+
+  if (!bestMatch) {
+    console.log("❌ No se encontró ningún match (ni exacto ni por embeddings).");
+    return res.status(404).json({ error: "No se encontró un día similar a la query" });
   }
 
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'deepseek/deepseek-chat-v3.1:free',
+  console.log("\n>>> BEST MATCH RESULT:");
+  console.log("· Día (ISO):", dateToISO(bestMatch.date));
+  console.log("· Día raw:", bestMatch.date);
+  console.log("· Texto:", bestMatch.text);
+
+      if (!bestMatch) {
+        console.log("❌ No se encontró ningún día similar.");
+        return res.status(404).json({ error: "No se encontró un día similar a la query" });
+      }
+
+      console.log("\n--- 5) Llamando al modelo ---");
+      
+      console.log(">>> API KEY cargada:", !!apiKey);
+
+      const bodyPayload = {
+        model: MODEL,
         messages: [
           {
-            role: 'system',
-            content: 'You are a helpful assistant.'
+            role: "user",
+            content:
+              `Contexto recuperado de la base:\n` +
+              `Empresa: ${empresa}\n` +
+              `Día detectado: ${bestMatch.date}\n` +
+              `Datos del día:\n${bestMatch.text}\n\n`
           },
           {
-            role: 'user',
-            content: query
+            role: "user",
+            content: queryProcesada
           }
-        ]
-      })
-    });
+        ],
+      };
 
-    const data = await response.json();
-    if (!response.ok) {
-      return res.status(response.status).json({ error: data });
+      console.log(">>> Payload enviado:", JSON.stringify(bodyPayload, null, 2));
+
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bodyPayload),
+      });
+
+      const data = await response.json();
+
+      console.log(">>> RESPUESTA DEL MODELO:", data);
+
+      return res.json({ response: data.choices[0].message.content });
+
+    } catch (err) {
+      console.error("\n❌ ERROR en bloque /estado:", err, "\n");
+      return res.status(500).json({ error: "Error interno al procesar la query" });
+    }
+  }
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+    return res.status(500).json({ error: 'API key not configured' });
     }
 
-    const responseText = data.choices[0].message.content;
-    res.json({ response: responseText });
-  } catch (error) {
-    console.error('Error calling OpenRouter:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a helpful assistant.'
+            },
+            {
+              role: 'user',
+              content: query
+            }
+          ]
+        })
+      });
 
+      const data = await response.json();
+      if (!response.ok) {
+        return res.status(response.status).json({ error: data });
+      }
 
-// ...aquí irán rutas para consultas, ingestión, reportes, etc.
-
-//Devuelve los datos historicos de la empresa
-app.get("/api/scrape/company", async (req, res) => {
-  if (!req.query.company) 
-    res.status(400).json({ error: 'You forgot to put your company dumbass' })
-
-  try {
-    //Extraccion de datos
-
-    //Obtiene el JSON de investing
-    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
-
-    //Filtra la informacion importante
-    let historicalData = JSON.parse(data)["props"]["pageProps"]["state"]["historicalDataStore"]["historicalData"]["data"]
-    let technicalData = JSON.parse(data)["props"]["pageProps"]["state"]["technicalStore"]["technicalData"]
-    let financialData = JSON.parse(data)["props"]["pageProps"]["state"]["financialStatementsStore"]
-
-    //Le saca los colores y datos innecesarios
-    historicalData = removeKeyFromArray(historicalData, "direction_color")
-    // Vectorizamos uno por uno (sin romper orden)
-const historicalWithText: any[] = [];
-for (const day of historicalData) {
-  const raw = {
-  last_close: safeNum(day.last_closeRaw ?? day.last_close),
-  last_open: safeNum(day.last_openRaw ?? day.last_open),
-  last_max: safeNum(day.last_maxRaw ?? day.last_max),
-  last_min: safeNum(day.last_minRaw ?? day.last_min),
-  volume: safeNum(day.volumeRaw ?? day.volume),
-  change: safeNum(day.change_percentRaw ?? day.change_percent ?? day.change) // OJO
-};
-
-  const text = generarTextoDiario(req.query.company, day.rowDate, raw);
-
-  const vector = await vectorizarTexto(text); // ✅ AQUÍ SE GENERA EL EMBEDDING
-
-  const normalizedDate = new Date(day.rowDate).toISOString().split("T")[0];
-
-  historicalWithText.push({
-    date: normalizedDate,
-    raw,
-    text,
-    vector
+      const responseText = data.choices[0].message.content;
+      const cleanResponse = sanitizeModelOutput(responseText);
+      res.json({ response: cleanResponse });
+    } catch (error) {
+      console.error('Error calling OpenRouter:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
-}
-
-    let allData = {
-      company: req.query.company,
-      historicalData: historicalWithText,
-      technicalData: technicalData,
-      financialData: financialData,
-      createdAt: new Date()
-    }
-    
-    const allDataJson = JSON.stringify(allData)
-    
-    /////Envio de datos a la db/////
-    if (mongo_enabled) {
-      let db = getDb()
-      console.log(db.databaseName)
-
-      //Primero ve si la coleccion existe
-      const existing = await db.listCollections({ name: "companies" }).toArray();
-      if (existing.length === 0) {
-        await db.createCollection("companies", { capped: false });
-        console.log(`Collection '${"companies"}' created.`);
-      }
-
-      //Updatea o si no crea un documento nuevo
-      let coll = await db.collection("companies")
-      const existingCompany = await coll.findOne({ "company": req.query.company });
-      
-      if (existingCompany) {
-        await coll.updateOne(
-          { "company": req.query.company },
-          { $set: allData }
-        );
-      } else {
-        await coll.insertOne(allData);
-      }
-
-      console.log("Information sent to db sucessfully.")
-    }
-
-    res.send(allDataJson)
-  }
-  catch (error){
-    console.error('Error doing scraping.', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 
-app.get("/api/scrape/indexes", async (req, res) => {
-  try {
-    if (!req.query.index)
-      res.status(400).json({ error: "No pusiste el indice" })
+  // ...aquí irán rutas para consultas, ingestión, reportes, etc.
 
-    //Obtiene el JSON de investing
-    const data = await getInvestingData(`https://www.investing.com/indices/${req.query.index}`)
-    res.send(data)
-  }
-  catch (error){
-    console.error('Error doing scraping.', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-})
+  //Devuelve los datos historicos de la empresa
+  app.get("/api/scrape/company", async (req, res) => {
+    if (!req.query.company) 
+      res.status(400).json({ error: 'You forgot to put your company dumbass' })
 
-//Este es mas de debugeo, devuelve todo el JSON
-app.get("/api/scrape/json", async (req, res) => {
-  if (!req.query.company) 
-    res.status(400).json({ error: 'You forgot to put your company dumbass' })
+    try {
+      //Extraccion de datos
 
-  try {
-    //Obtiene el JSON de investing
-    const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
-    res.send(data)
-  }
-  catch (error){
-    console.error('Error doing scraping.', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-})
+      //Obtiene el JSON de investing
+      const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
 
-//Este es mas de debugeo, devuelve todo el html
-app.get("/api/scrape/html", async (req, res) => {
-  if (!req.query.company) 
-    res.status(400).json({ error: 'You forgot to put your company dumbass' })
+      //Filtra la informacion importante
+      let historicalData = JSON.parse(data)["props"]["pageProps"]["state"]["historicalDataStore"]["historicalData"]["data"]
+      let technicalData = JSON.parse(data)["props"]["pageProps"]["state"]["technicalStore"]["technicalData"]
+      let financialData = JSON.parse(data)["props"]["pageProps"]["state"]["financialStatementsStore"]
 
-  try {
-    //Obtiene el JSON de investing
-    const data = await getInvestingHTML(`https://www.investing.com/equities/${req.query.company}-historical-data`)
-    res.send(data)
-  }
-  catch (error){
-    console.error('Error doing scraping.', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-})
+      //Le saca los colores y datos innecesarios
+      historicalData = removeKeyFromArray(historicalData, "direction_color")
+      // Vectorizamos uno por uno (sin romper orden)
+  const historicalWithText: any[] = [];
+  for (const day of historicalData) {
+    const raw = {
+    last_close: safeNum(day.last_closeRaw ?? day.last_close),
+    last_open: safeNum(day.last_openRaw ?? day.last_open),
+    last_max: safeNum(day.last_maxRaw ?? day.last_max),
+    last_min: safeNum(day.last_minRaw ?? day.last_min),
+    volume: safeNum(day.volumeRaw ?? day.volume),
+    change: safeNum(day.change_percentRaw ?? day.change_percent ?? day.change) // OJO
+  };
 
-const PORT = Number(process.env.PORT) || 3001;
+    const text = generarTextoDiario(req.query.company, day.rowDate, raw);
 
-async function startServer() {
-  try {
-    // Conectar a la base de datos (usa MONGODB_URI en backend/.env)
-    if (mongo_enabled)
-      await connectToDatabase();
+    const vector = await vectorizarTexto(text); // ✅ AQUÍ SE GENERA EL EMBEDDING
 
-    app.listen(PORT, () => {
-      console.log(`Backend escuchando en puerto ${PORT}`);
+    const normalizedDate = new Date(day.rowDate).toISOString().split("T")[0];
+
+    historicalWithText.push({
+      date: normalizedDate,
+      raw,
+      text,
+      vector
     });
-  } catch (err) {
-    console.error('Error iniciando servidor:', err);
-    process.exit(1);
   }
-}
 
-startServer();
+      let allData = {
+        company: req.query.company,
+        historicalData: historicalWithText,
+        technicalData: technicalData,
+        financialData: financialData,
+        createdAt: new Date()
+      }
+      
+      const allDataJson = JSON.stringify(allData)
+      
+      /////Envio de datos a la db/////
+      if (mongo_enabled) {
+        let db = getDb()
+        console.log(db.databaseName)
 
-// Manejar cierre gracioso
-/*
-process.on('SIGINT', async () => {
-  console.log('Recibido SIGINT, cerrando...');
-  await closeDatabaseConnection();
-  process.exit(0);
-});
-process.on('SIGTERM', async () => {
-  console.log('Recibido SIGTERM, cerrando...');
-  await closeDatabaseConnection();
-  process.exit(0);
-});
-*/
+        //Primero ve si la coleccion existe
+        const existing = await db.listCollections({ name: "companies" }).toArray();
+        if (existing.length === 0) {
+          await db.createCollection("companies", { capped: false });
+          console.log(`Collection '${"companies"}' created.`);
+        }
+
+        //Updatea o si no crea un documento nuevo
+        let coll = await db.collection("companies")
+        const existingCompany = await coll.findOne({ "company": req.query.company });
+        
+        if (existingCompany) {
+          await coll.updateOne(
+            { "company": req.query.company },
+            { $set: allData }
+          );
+        } else {
+          await coll.insertOne(allData);
+        }
+
+        console.log("Information sent to db sucessfully.")
+      }
+
+      res.send(allDataJson)
+    }
+    catch (error){
+      console.error('Error doing scraping.', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+
+  app.get("/api/scrape/indexes", async (req, res) => {
+    try {
+      if (!req.query.index)
+        res.status(400).json({ error: "No pusiste el indice" })
+
+      //Obtiene el JSON de investing
+      const data = await getInvestingData(`https://www.investing.com/indices/${req.query.index}`)
+      res.send(data)
+    }
+    catch (error){
+      console.error('Error doing scraping.', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+
+  //Este es mas de debugeo, devuelve todo el JSON
+  app.get("/api/scrape/json", async (req, res) => {
+    if (!req.query.company) 
+      res.status(400).json({ error: 'You forgot to put your company dumbass' })
+
+    try {
+      //Obtiene el JSON de investing
+      const data = await getInvestingData(`https://www.investing.com/equities/${req.query.company}-historical-data`)
+      res.send(data)
+    }
+    catch (error){
+      console.error('Error doing scraping.', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+
+  //Este es mas de debugeo, devuelve todo el html
+  app.get("/api/scrape/html", async (req, res) => {
+    if (!req.query.company) 
+      res.status(400).json({ error: 'You forgot to put your company dumbass' })
+
+    try {
+      //Obtiene el JSON de investing
+      const data = await getInvestingHTML(`https://www.investing.com/equities/${req.query.company}-historical-data`)
+      res.send(data)
+    }
+    catch (error){
+      console.error('Error doing scraping.', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+
+  const PORT = Number(process.env.PORT) || 3001;
+
+  async function startServer() {
+    try {
+      // Conectar a la base de datos (usa MONGODB_URI en backend/.env)
+      if (mongo_enabled)
+        await connectToDatabase();
+
+      app.listen(PORT, () => {
+        console.log(`Backend escuchando en puerto ${PORT}`);
+      });
+    } catch (err) {
+      console.error('Error iniciando servidor:', err);
+      process.exit(1);
+    }
+  }
+
+  startServer();
+
+  // Manejar cierre gracioso
+  /*
+  process.on('SIGINT', async () => {
+    console.log('Recibido SIGINT, cerrando...');
+    await closeDatabaseConnection();
+    process.exit(0);
+  });
+  process.on('SIGTERM', async () => {
+    console.log('Recibido SIGTERM, cerrando...');
+    await closeDatabaseConnection();
+    process.exit(0);
+  });
+  */
