@@ -3,21 +3,21 @@ import { ChartType } from "../models/analysis.types";
 
 type GraphPayload = any;
 
-function buildLine(h: HistoricalDataEntry[]): GraphPayload {
-    const labels = h.map(d => d.rowDate);
-    const values = h.map(d => d.last_closeRaw ?? 0);
+function buildLine(h: any[]): GraphPayload {
+    const labels = h.map(d => d.date);
+    const values = h.map(d => d.close);
     return { type: "line", title: "Precio (Close)", data: { labels, values } };
 }
 
-function buildBarVolume(h: HistoricalDataEntry[]): GraphPayload {
-    const labels = h.map(d => d.rowDate);
-    const values = h.map(d => d.last_closeRaw ?? 0);
+function buildBarVolume(h: any[]): GraphPayload {
+    const labels = h.map(d => d.date);
+    const values = h.map(d => d.volume);
     return { type: "bar", title: "Volumen", data: { labels, values } };
     }
 
-function buildArea(h: HistoricalDataEntry[]): GraphPayload {
-    const labels = h.map(d => d.rowDate);
-    const values = h.map(d => d.last_closeRaw ?? 0);
+function buildArea(h: any[]): GraphPayload {
+    const labels = h.map(d => d.date);
+    const values = h.map(d => d.close);
     return { type: "area", title: "Área: Precio", data: { labels, values } };
 }
 
@@ -28,13 +28,13 @@ function buildPieFromFinancial(fin: any): GraphPayload {
     return { type: "pie", title: "Distribución", data: { labels, values } };
 }
 
-function buildCandlestick(h: HistoricalDataEntry[]): GraphPayload {
+function buildCandlestick(h: any[]): GraphPayload {
     const data = h.map((d, i) => ({
-        date: d.rowDate,
-        open: d.last_openRaw ?? d.last_closeRaw,
-        high: d.last_maxRaw ?? d.last_closeRaw,
-        low: d.last_minRaw ?? d.last_closeRaw,
-        close: d.last_closeRaw ?? 0,
+        date: d.date,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close,
     }));
     return { type: "candlestick", title: "Candlestick", data };
 }
@@ -42,7 +42,12 @@ function buildCandlestick(h: HistoricalDataEntry[]): GraphPayload {
 export function chooseGraphType(autoPrefer: "price" | "volume" | "composition", hist?: HistoricalDataEntry[], fin?: any): ChartType {
     if (autoPrefer === "volume") return "bar";
     if (autoPrefer === "composition") return "pie";
-    if (hist && hist.length > 0 && (hist[0].last_openRaw !== undefined && hist[0].last_maxRaw !== undefined)) return "candlestick";
+    if (hist && hist.length > 0) {
+        const h = hist[0];
+        if (h.raw?.last_open !== undefined && h.raw?.last_max !== undefined) {
+            return "candlestick";
+        }
+    }
     return "line";
 }
 

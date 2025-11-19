@@ -13,24 +13,36 @@ const companyService = new CompanyService(); // <-- NECESARIO
 
 export class ChatOrchestrator {
     
-    static async handleQuery(query: string): Promise<ChatEntity> {
+    static async handleQuery(input: { query: string; json: any }): Promise<ChatEntity> {
+        const { query, json } = input;
         console.log("[handleQuery] query recibida:", query);
 
         // 1. Buscar la compañía relevante según la consulta
-        const company = await companyService.searchByTerm(query);
+        const minimalCompany = await companyService.findCompanyFromQuery(query);
+
+        if (!minimalCompany) {
+            return await chatService.askAI({ query, json: { query } });
+        }
+        
+        // obtener el CompanyEntity completo:
+        const company = await companyService.findBySlug(minimalCompany.company);
+        
+        if (!company) {
+            return await chatService.askAI({ query, json: { query } });
+        }
 
         // 2. Si no encontramos compañía (o la consulta es genérica como "hola")
         if (!company) {
             // chatService.askAI ya devuelve un ChatEntity (solo con texto)
-            return await chatService.askAI(query);
+            return await chatService.askAI({ query, json: { query } });
         }
 
         // 3. Si encontramos compañía, buscamos un análisis (CACHÉ)
         let analysis: AnalysisEntity | null = null;
         
         try {
-            analysis = await analysisService.getLatestForCompany(company._id);
-
+            const companyId = typeof company._id === 'string' ? company._id : String(company._id);
+            analysis = await analysisService.getLatestForCompany(companyId);
             // 4. Si NO hay análisis, lo generamos (CACHE MISS)
             if (!analysis) {
                 console.log(`[ChatOrchestrator] No analysis found for ${company.company}. Generating...`);
@@ -40,12 +52,12 @@ export class ChatOrchestrator {
         } catch (genError: any) {
             console.error(`[ChatOrchestrator] Error finding or generating analysis: ${genError.message}`);
             // Si falla la generación, al menos devolvemos una respuesta de IA genérica
-            return await chatService.askAI(query);
+            return await chatService.askAI({ query, json: { query } });
         }
         
         if (!analysis) {
             console.error("[ChatOrchestrator] Analysis is null after try/catch. Fallback to AI.");
-            return await chatService.askAI(query);
+            return await chatService.askAI({ query, json: { query } });
         }
 
         // 5. CONSTRUIR EL CONTEXTO (El "Augmented" de RAG)
@@ -60,28 +72,33 @@ export class ChatOrchestrator {
         `;
 
         // 6. CREAR EL PROMPT FINAL PARA LA IA
-        const finalQuery = `
-            Eres un asistente financiero experto.
-            Usa el siguiente contexto para responder la pregunta del usuario.
-            No menciones que estás usando un contexto, solo responde la pregunta.
-            Si la pregunta no parece relacionada con el contexto, responde de forma general.
-
-            --- CONTEXTO ---
-            ${context}
-            --- PREGUNTA DEL USUARIO ---
-            ${query}
-        `;
+        const dbContext = {
+            query,
+            company,
+            analysis,
+            datasets: analysis.datasets,
+            indicators: analysis.indicators,
+            charts: analysis.charts
+        };
 
         // 7. Llamar a la IA (ahora con superpoderes)
-        const aiResponse = await chatService.askAI(finalQuery);
+        try {
+            const aiResponse = await chatService.askAI({
+                query,
+                json: dbContext
+            });
+            aiResponse.company = analysis.company;
+            aiResponse.analysisId = analysis._id?.toString(); // <-- MUY IMPORTANTE
+            aiResponse.datasets = analysis.datasets;
+            aiResponse.indicators = analysis.indicators;
+            aiResponse.charts = analysis.charts;
 
+            return aiResponse;
+        } catch (err: any) {
+            console.error("[handleQuery] Error en askAI:", err.message);
+            return new ChatEntity("Hubo un error al conectar con la IA.");
+        }
         // 8. ADJUNTAR DATOS A LA RESPUESTA
-        aiResponse.company = analysis.company;
-        aiResponse.analysisId = analysis._id?.toString(); // <-- MUY IMPORTANTE
-        aiResponse.datasets = analysis.datasets;
-        aiResponse.indicators = analysis.indicators;
-        aiResponse.charts = analysis.charts;
-
-        return aiResponse;
+        
     }
 }

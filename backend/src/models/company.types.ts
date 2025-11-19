@@ -1,13 +1,18 @@
-export interface HistoricalDataEntry {
-    rowDate: string;
-    last_closeRaw: string;
-    last_openRaw: string;
-    last_maxRaw: string;
-    last_minRaw: string;
-    volumeRaw: number;
-    change_precentRaw: string;
-    dateRaw: string;
+export interface HistoricalRawData {
+    last_close: number; // o string, si los valores en MongoDB son strings
+    last_open: number; // o string
+    last_max: number; // o string
+    last_min: number; // o string
+    volume: number;
+    change: number
 }
+
+export interface HistoricalDataEntry {
+        date: string; // La fecha principal que usas
+        raw: HistoricalRawData; // La data anidada de precios y volumen
+        text: string;
+        vector: number[]; // El vector
+    }
 
 export interface TechnicalIndicatorValue {
     name: string;

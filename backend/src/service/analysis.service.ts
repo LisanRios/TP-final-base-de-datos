@@ -56,14 +56,17 @@ export class AnalysisService {
             };
         }
 
-        const first = Number(hist[0].last_closeRaw);
-        const last = Number(hist[hist.length - 1].last_closeRaw);
+        const lastCloseEntry = hist[0];
+        const firstCloseEntry = hist[hist.length - 1];
+
+        const first = Number(firstCloseEntry.raw?.last_close || 0);
+        const last = Number(lastCloseEntry.raw?.last_close || 0);
 
         const variationPct = ((last - first) / first) * 100;
         const trend = variationPct > 0 ? "alcista" : variationPct < 0 ? "bajista" : "neutral";
 
         const volValues = hist
-            .map(h => Number(h.change_precentRaw))
+            .map(h => Number(h.raw?.change || 0))
             .filter(v => !isNaN(v));
 
         const volatility = volValues.length
@@ -157,4 +160,14 @@ export class AnalysisService {
 
         return existing;
     }
+}
+
+function buildCandlestickDataset(historical: any[]) {
+    return historical.map(entry => ({
+        date: entry.date,
+        open: entry.raw.last_open,
+        high: entry.raw.last_max,
+        low: entry.raw.last_min,
+        close: entry.raw.last_close
+    }));
 }

@@ -18,13 +18,14 @@ export class GraphAdapterService {
     // Convierte tu data RAW en OHLC real
     private toOHLC(raw: HistoricalDataEntry[]) {
         return raw.map(h => ({
-            date: h.rowDate,
-            open: Number(h.last_openRaw),
-            high: Number(h.last_maxRaw),
-            low: Number(h.last_minRaw),
-            close: Number(h.last_closeRaw),
-            volume: Number(h.volumeRaw),
-        }));
+            date: h.date,
+            open: Number(h.raw?.last_open),
+            high: Number(h.raw?.last_max),
+            low: Number(h.raw?.last_min),
+            close: Number(h.raw?.last_close),
+            volume: Number(h.raw?.volume),
+        }))
+        .filter(h => h.close > 0 && h.date);
     }
 
     // Crea TODOS los datasets que pide AnalysisEntity
@@ -72,7 +73,7 @@ export class GraphAdapterService {
         // Si tengo OHLC completo → candlestick
         if (hist.length > 0) {
             const h = hist[0];
-            if (h.last_openRaw && h.last_maxRaw && h.last_minRaw) {
+            if (h.raw?.last_open && h.raw?.last_max && h.raw?.last_min) {
                 return "candlestick";
             }
         }
