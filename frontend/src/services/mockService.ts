@@ -14,9 +14,11 @@ export const mockService = {
             { name: "Volatilidad", value: "2.5%" }
         ];
 
+        const now = new Date().toISOString();
+
         return [
-            { content: "Aquí están tus indicadores de prueba:", sender: "bot" },
-            { content: "", sender: "bot", graph_type: "line", data: chartData, indicators }
+            { content: "Aquí están tus indicadores de prueba:", sender: "bot", timestamp: now },
+            { content: "", sender: "bot", graph_type: "line", data: chartData, indicators, timestamp: now }
         ];
     }
 };

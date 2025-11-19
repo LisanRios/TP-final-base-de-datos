@@ -7,6 +7,8 @@ import { HfInference } from "@huggingface/inference";
 dotenv.config({ path: '.env' });
 import * as cheerio from "cheerio";
 import { connectToDatabase, closeDatabaseConnection, getDb } from './db';
+import { generateEstadoReport } from './analysis';
+import type { CompanyDocument } from './analysis';
 import { Builder, By, WebDriver, until } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome';
 import puppeteer from 'puppeteer-extra';
@@ -223,17 +225,84 @@ async function fetchInvestingHTMLViaSelenium(url: string): Promise<string> {
   }
 }
 
-const hf = new HfInference(process.env.HF_TOKEN);
+const HF_TOKEN = process.env.HF_TOKEN?.trim();
+let hfClient = HF_TOKEN ? new HfInference(HF_TOKEN) : null;
+let hasLoggedEmbeddingFallback = false;
+
+function fallbackVectorizarTexto(text: string, dimensions = 128): number[] {
+  const clean = text ?? "";
+  const vector = new Array(dimensions).fill(0);
+
+  for (let i = 0; i < clean.length; i++) {
+    const code = clean.charCodeAt(i);
+    const idx = code % dimensions;
+    vector[idx] += ((code % 31) + 1) / 32;
+  }
+
+  const norm = Math.sqrt(vector.reduce((acc, value) => acc + value * value, 0));
+  if (norm === 0) {
+    return vector;
+  }
+
+  return vector.map(value => value / norm);
+}
+
+function toNumberArray(data: unknown): number[] | null {
+  if (Array.isArray(data) && data.every(value => typeof value === "number")) {
+    return data as number[];
+  }
+
+  if (typeof ArrayBuffer !== "undefined" && ArrayBuffer.isView(data)) {
+    return Array.from(data as unknown as Iterable<number>);
+  }
+
+  return null;
+}
 
 async function vectorizarTexto(text: string): Promise<number[]> {
-  const response = await hf.featureExtraction({
-    model: "sentence-transformers/all-MiniLM-L6-v2",
-    inputs: text,
-    pooling: "mean",
-    normalize: true
-  });
+  const input = text?.toString() ?? "";
 
-  return response as number[];
+  if (hfClient) {
+    try {
+      const response = await hfClient.featureExtraction({
+        model: MODEL,
+        inputs: input,
+        pooling: "mean",
+        normalize: true
+      });
+
+      if (Array.isArray(response)) {
+        const flattened = Array.isArray(response[0])
+          ? toNumberArray(response[0])
+          : toNumberArray(response);
+
+        if (flattened) {
+          return flattened;
+        }
+      } else {
+        const flattened = toNumberArray(response);
+        if (flattened) {
+          return flattened;
+        }
+      }
+
+      throw new Error("Unexpected embedding response shape");
+    } catch (error) {
+      console.error("Fallo al vectorizar con HuggingFace, se utilizará el método local:", error);
+      hfClient = null;
+    }
+  }
+
+  if (!hasLoggedEmbeddingFallback) {
+    if (!HF_TOKEN) {
+      console.warn("HF_TOKEN no está configurado. Usando vectorización local como respaldo.");
+    } else {
+      console.warn("Fallo la vectorización con HuggingFace. Usando vectorización local como respaldo.");
+    }
+    hasLoggedEmbeddingFallback = true;
+  }
+
+  return fallbackVectorizarTexto(input);
 }
 
 function generarTextoDiario(company: any, date: any, raw: any): string {
@@ -260,6 +329,10 @@ function removeKeyFromArray<T extends Record<string, any>>(
   return arr.map(obj =>
     Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key))
   );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 
@@ -653,6 +726,173 @@ app.post('/api/chat', async (req, res) => {
     catch (error){
       console.error('Error doing scraping.', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/estado', async (req, res) => {
+    const rawCompany = Array.isArray(req.query.company) ? req.query.company[0] : req.query.company;
+    const companyParam = typeof rawCompany === 'string' ? rawCompany.trim() : '';
+
+    if (!companyParam) {
+      return res.status(400).json({ error: 'Parámetro "company" obligatorio' });
+    }
+
+    if (!mongo_enabled) {
+      return res.status(503).json({ error: 'La base de datos no está habilitada en este entorno' });
+    }
+
+    try {
+      const db = getDb();
+      const collection = db.collection('companies');
+
+      let companyDoc = await collection.findOne({ company: companyParam });
+
+      if (!companyDoc) {
+        const regex = new RegExp(`^${escapeRegExp(companyParam)}$`, 'i');
+        companyDoc = await collection.findOne({ company: regex });
+      }
+
+      if (!companyDoc) {
+        const slug = companyParam.toLowerCase().replace(/\s+/g, '-');
+        companyDoc = await collection.findOne({ company: slug });
+      }
+
+      if (!companyDoc) {
+        return res.status(404).json({ error: `No se encontraron datos para ${companyParam}` });
+      }
+
+      const { _id, ...rest } = companyDoc as CompanyDocument & { _id?: unknown };
+      const typedDoc: CompanyDocument = {
+        company: rest.company,
+        historicalData: Array.isArray(rest.historicalData) ? rest.historicalData : [],
+        technicalData: rest.technicalData,
+        createdAt: rest.createdAt
+      };
+
+      const report = generateEstadoReport(typedDoc);
+
+      const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+      let aiAnalysis: {
+        past: string;
+        present: string;
+        future: string;
+        conclusion: string;
+      } | null = null;
+
+      if (!apiKey) {
+        console.warn('OPENROUTER_API_KEY no configurada; se omite análisis narrativo en /api/estado.');
+      } else {
+        try {
+          const messages = [
+            {
+              role: 'system',
+              content:
+                'Eres un analista financiero sénior. Recibirás un informe cuantitativo de una empresa y debes evaluarla separando tu respuesta en cuatro campos: pasado (historial y confiabilidad), presente (situación actual), futuro (proyección de valor y estabilidad) y conclusion (recomendación sintética). Usa lenguaje claro en español neutro y evita repetir textualmente el resumen original. Cada campo debe ser un párrafo conciso.'
+            },
+            {
+              role: 'user',
+              content: `Informe cuantitativo:
+
+${report.summaryText}
+
+Métricas JSON:
+${JSON.stringify(report.metrics, null, 2)}`
+            }
+          ];
+
+          const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: MODEL,
+              messages,
+              temperature: 0.3,
+              response_format: {
+                type: 'json_schema',
+                json_schema: {
+                  name: 'EstadoNarrativo',
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      past: { type: 'string' },
+                      present: { type: 'string' },
+                      future: { type: 'string' },
+                      conclusion: { type: 'string' }
+                    },
+                    required: ['past', 'present', 'future', 'conclusion'],
+                    additionalProperties: false
+                  }
+                }
+              }
+            })
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+
+            if (response.status === 429) {
+              let rateLimitMessage = 'Se alcanzó el límite diario gratuito del modelo de análisis narrativo.';
+              try {
+                const parsedError = JSON.parse(errorText);
+                const providerMessage = parsedError?.error?.message;
+                if (typeof providerMessage === 'string') {
+                  rateLimitMessage = providerMessage;
+                }
+              } catch (parseError) {
+                // No es JSON válido, usamos el mensaje por defecto
+              }
+
+              console.warn(`[OpenRouter] ${rateLimitMessage} Se devolverá el informe cuantitativo sin análisis narrativo enriquecido.`);
+
+              const guidance = 'Puedes intentarlo nuevamente más tarde o configurar créditos adicionales en OpenRouter para restablecer el acceso.';
+              aiAnalysis = {
+                past: 'Análisis narrativo no disponible temporalmente porque se alcanzó el límite de uso del modelo. Consulta la sección cuantitativa para revisar el desempeño histórico.',
+                present: 'No se generó la interpretación automática del estado actual debido al límite del modelo. Revisa las métricas numéricas para el contexto inmediato.',
+                future: 'No se elaboró una proyección narrativa porque el modelo alcanzó su límite gratuito. Considera volver a intentarlo cuando el cupo diario se renueve.',
+                conclusion: `${rateLimitMessage} ${guidance}`
+              };
+            } else {
+              throw new Error(`Respuesta ${response.status}: ${errorText}`);
+            }
+          } else {
+            const data = await response.json();
+            const content = data?.choices?.[0]?.message?.content;
+            if (typeof content === 'string') {
+              const clean = sanitizeModelOutput(content);
+              try {
+                const parsed = JSON.parse(clean);
+                if (
+                  parsed &&
+                  typeof parsed === 'object' &&
+                  typeof parsed.past === 'string' &&
+                  typeof parsed.present === 'string' &&
+                  typeof parsed.future === 'string' &&
+                  typeof parsed.conclusion === 'string'
+                ) {
+                  aiAnalysis = parsed;
+                } else {
+                  console.warn('El modelo devolvió un JSON con formato inesperado en /api/estado.');
+                }
+              } catch (jsonError) {
+                console.warn('No se pudo parsear la respuesta del modelo en /api/estado:', jsonError);
+              }
+            }
+          }
+        } catch (modelError) {
+          console.error('Error solicitando análisis narrativo en /api/estado:', modelError);
+        }
+      }
+
+      return res.json({
+        ...report,
+        aiAnalysis
+      });
+    } catch (error) {
+      console.error('Error generando estado:', error);
+      return res.status(500).json({ error: 'Error interno al generar el estado' });
     }
   });
 
