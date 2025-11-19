@@ -36,3 +36,39 @@ export function getDb() {
   if (!dbInstance) throw new Error('La base de datos no está conectada. Llama a connectToDatabase primero.');
   return dbInstance;
 }
+
+// Nueva función para obtener datos financieros históricos
+/**
+ * Obtiene datos históricos de precios para un ticker y rango de fechas.
+ * @param ticker Símbolo del activo (ej: 'AAPL', 'BTC').
+ * @param startDate Fecha de inicio (Date object).
+ * @param endDate Fecha de fin (Date object).
+ * @returns Array de documentos con datos históricos (debe incluir: date, open, high, low, close, volume).
+ */
+export async function getHistoricalData(
+  ticker: string, 
+  startDate: Date, 
+  endDate: Date
+) {
+  try {
+    const db = getDb();
+    // **Asegúrate de que 'historical_data' sea el nombre de tu colección real.**
+    const collection = db.collection('historical_data'); 
+    
+    
+    const data = await collection.find({
+      ticker: ticker,
+      date: {
+        $gte: startDate, 
+        $lte: endDate    
+      }
+    })
+    .sort({ date: 1 }) 
+    .toArray();
+
+    return data;
+  } catch (error) {
+    console.error(`Error al obtener datos históricos para ${ticker}:`, error);
+    return []; 
+  }
+}

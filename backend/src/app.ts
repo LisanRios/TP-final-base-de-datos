@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 // Cargar variables de entorno desde backend/.env en desarrollo
 import dotenv from 'dotenv';
@@ -6,11 +6,152 @@ import { HfInference } from "@huggingface/inference";
 
 dotenv.config({ path: '.env' });
 import * as cheerio from "cheerio";
-import { connectToDatabase, closeDatabaseConnection, getDb } from './db';
+import { connectToDatabase, closeDatabaseConnection, getDb, getHistoricalData} from './db';
 import { Builder, By, WebDriver, until } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+
+
+interface ChartData {
+  graph_type: 'line' | 'bar' | 'pie' | 'candlestick' | 'area';
+  data: any[];
+  indicators?: { name: string; value: number | string }[];
+  text?: string;
+}
+const assetMap: { [key: string]: string } = {
+  'bitcoin': 'BTC',
+  'btc': 'BTC',
+  'apple': 'AAPL',
+  'tesla': 'TSLA',
+  'google': 'GOOGL',
+  'microsoft': 'MSFT',
+  'amazon': 'AMZN',
+  'mercadolibre': 'MELI',
+};
+
+function getAssetTicker(query: string): string | null {
+  const lowerQuery = query.toLowerCase();
+  for (const name in assetMap) {
+    if (lowerQuery.includes(name)) {
+      return assetMap[name];
+    }
+  }
+  return null;
+}
+
+function getTimeRange(query: string): { startDate: Date, endDate: Date } {
+  const lowerQuery = query.toLowerCase();
+  const endDate = new Date();
+  let startDate = new Date();
+  let days = 7; 
+  
+  if (lowerQuery.includes('30 días') || lowerQuery.includes('último mes')) {
+    days = 30;
+  } else if (lowerQuery.includes('90 días') || lowerQuery.includes('3 meses')) {
+    days = 90;
+  } else if (lowerQuery.includes('año') || lowerQuery.includes('último año') || lowerQuery.includes('365 días')) {
+    days = 365;
+  }
+  
+  startDate.setDate(endDate.getDate() - days);
+
+
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(23, 59, 59, 999);
+  
+  return { startDate, endDate };
+}
+
+function getChartType(query: string): ChartData['graph_type'] {
+  const lowerQuery = query.toLowerCase();
+  if (lowerQuery.includes('velas') || lowerQuery.includes('candlestick')) {
+    return 'candlestick';
+  }
+  if (lowerQuery.includes('barras') || lowerQuery.includes('volumen')) {
+    return 'bar';
+  }
+  if (lowerQuery.includes('pie') || lowerQuery.includes('torta')) {
+    return 'pie'; 
+  }
+ 
+  return 'line'; 
+}
+
+async function processChatQuery(query: string): Promise<ChartData | { text: string }> {
+  const ticker = getAssetTicker(query);
+  const { startDate, endDate } = getTimeRange(query);
+  const chartType = getChartType(query);
+
+  if (!ticker || !['candlestick', 'line', 'bar', 'area'].includes(chartType)) {
+    return { 
+        text: `No pude identificar el activo o el tipo de gráfico que solicitaste. Soy un Asistente Financiero, puedes preguntarme, por ejemplo: **"Gráfico de velas de BTC de los últimos 30 días"**.` 
+    };
+  }
+  
+  try {
+
+    const historicalData = await getHistoricalData(ticker, startDate, endDate);
+    
+    if (historicalData.length === 0) {
+      return { text: `Lo siento, no tengo datos históricos disponibles para el activo **${ticker}** en el rango de fechas solicitado.` };
+    }
+
+    let chartData: any[] = [];
+    let textMessage: string;
+
+    if (chartType === 'candlestick') {
+        chartData = historicalData.map((d: any) => ({
+            date: d.date.toISOString().split('T')[0],
+            open: d.open,
+            high: d.high,
+            low: d.low,
+            close: d.close
+        }));
+        textMessage = `Aquí está el gráfico de velas (Candlestick) para **${ticker}** (${historicalData.length} puntos de datos).`;
+    } else if (chartType === 'line' || chartType === 'area') {
+        chartData = historicalData.map((d: any) => ({
+            name: d.date.toISOString().split('T')[0],
+            value: d.close 
+        }));
+        textMessage = `Aquí está el gráfico de ${chartType === 'line' ? 'línea' : 'área'} para **${ticker}** (${historicalData.length} puntos de datos).`;
+    } else if (chartType === 'bar') {
+      
+        chartData = historicalData.map((d: any) => ({
+            name: d.date.toISOString().split('T')[0],
+            value: d.volume || d.close 
+        }));
+        textMessage = `Aquí está el gráfico de barras (Volumen/Precio) para **${ticker}** (${historicalData.length} puntos de datos).`;
+    } else {
+         return { text: `El tipo de gráfico **${chartType}** requiere una lógica de agregación que no está implementada aún. Por favor, solicita **"línea"**, **"velas"** o **"barras"**.`};
+    }
+    
+    const firstClose = historicalData[0].close;
+    const lastClose = historicalData[historicalData.length - 1].close;
+    const returnPercentage = (((lastClose - firstClose) / firstClose) * 100);
+
+    const indicators = [
+        { name: "Precio Final", value: `${lastClose.toFixed(2)} USD` },
+        { name: `Retorno Total`, value: `${returnPercentage.toFixed(2)}%` }
+    ];
+
+    const response: ChartData = {
+      graph_type: chartType,
+      data: chartData,
+      indicators: indicators,
+      text: textMessage,
+    };
+
+    return response;
+
+  } catch (error) {
+    console.error("Error en processChatQuery:", error);
+    return { text: "Lo siento, ocurrió un error interno al intentar obtener los datos del gráfico." };
+  }
+}
+
+
+
 
 const BASE_INVESTING_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
@@ -267,6 +408,37 @@ app.use(express.json());
 
 app.get('/', (req, res) => {
   res.send('API TP Final Base de Datos funcionando');
+});
+
+//graficos
+app.post('/api/chat', async (req: Request, res: Response) => {
+  
+  const { query } = req.body;
+
+  if (!query) {
+    return res.status(400).json({ error: 'Falta el parámetro "query" en el cuerpo de la solicitud.' });
+  }
+
+  try {
+    const result = await processChatQuery(query as string);
+
+    
+    const responsePayload = {
+        response: JSON.stringify(result)
+    };
+    
+    
+    res.json(responsePayload);
+
+  } catch (error) {
+    console.error('Error handling chat request:', error);
+    const errorResponse = {
+        response: JSON.stringify({
+            text: "Lo siento, hubo un error inesperado al procesar tu solicitud."
+        })
+    };
+    res.status(500).json(errorResponse);
+  }
 });
 
 // Ruta paranp chat general

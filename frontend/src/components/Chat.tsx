@@ -57,7 +57,7 @@ const Chat = () => {
         setInput("");
         setIsLoading(true);
 
-        // Comando de prueba
+    /*    // Comando de prueba
         if (trimmed.toLowerCase() === "/test-indicators") {
             const messages = mockService.getTestIndicators();
             messages.forEach(msg => addMessage(msg.content, msg.sender, msg.graph_type, msg.data, msg.indicators));
@@ -73,7 +73,7 @@ const Chat = () => {
             setIsLoading(false);
             return;
         }
-
+*/
         // Consulta al backend
         try {
             const { response } = await chatService.sendMessage(trimmed);
