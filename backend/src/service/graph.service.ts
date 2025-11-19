@@ -29,7 +29,7 @@ function buildPieFromFinancial(fin: any): GraphPayload {
 }
 
 function buildCandlestick(h: any[]): GraphPayload {
-    const data = h.map((d, i) => ({
+    const data = h.map(d => ({
         date: d.date,
         open: d.open,
         high: d.high,
