@@ -797,6 +797,15 @@ ${report.summaryText}`;
         if (e.key === "Enter") sendMessage();
     };
 
+    const handleClearChat = () => {
+        conversationStartedAtRef.current = null;
+        setMessages([]);
+        setInput("");
+        setReportGeneratedAt(null);
+        setLastMessageAt(null);
+        setIsExportingReport(false);
+    };
+
     return (
         <div className={`chat-app-container${isExportingReport ? ' exporting' : ''}`}>
             <div className="chat-header-row">
@@ -915,6 +924,15 @@ ${report.summaryText}`;
                     disabled={isLoading}
                 />
                 <button
+                    type="button"
+                    onClick={handleClearChat}
+                    disabled={messages.length === 0 && !input.trim()}
+                    title="Limpiar conversación"
+                >
+                    Limpiar
+                </button>
+                <button
+                    type="button"
                     onClick={sendMessage}
                     disabled={isLoading || !input.trim()}
                 >

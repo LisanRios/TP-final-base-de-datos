@@ -4,6 +4,12 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { HfInference } from "@huggingface/inference";
 
+// .env de backend 
+// MONGODB_URI=mongodb+srv://root:7ZtssvZFbL5EZrAo@clustertest1.vf2aggf.mongodb.net/?retryWrites=true&w=majority&appName=ClusterTest1
+// PORT=3001
+// DEEPSEEK_API_KEY=sk-517272b0cd1d4d75beee6cbfe034ae1d
+
+
 dotenv.config({ path: '.env' });
 import * as cheerio from "cheerio";
 import { connectToDatabase, closeDatabaseConnection, getDb } from './db';
@@ -31,7 +37,9 @@ function safeNum(x: any) {
 const INVESTING_TIMEOUT_MS = 20000;
 const INVESTING_COOKIE = process.env.INVESTING_COOKIE ?? '';
 const ENABLE_SELENIUM_FALLBACK = process.env.SCRAPER_ENABLE_SELENIUM === 'true';
-const MODEL = "tngtech/deepseek-r1t2-chimera:free";
+const MODEL = process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-chat';
+const DEEPSEEK_API_BASE_URL = (process.env.DEEPSEEK_API_BASE_URL?.trim() || 'https://api.deepseek.com/v1').replace(/\/$/, '');
+const DEEPSEEK_CHAT_COMPLETIONS_URL = `${DEEPSEEK_API_BASE_URL}/chat/completions`;
 
 puppeteer.use(StealthPlugin());
 
@@ -382,7 +390,7 @@ app.post('/api/chat', async (req, res) => {
 
   if (query.toLowerCase().startsWith('/estado')) {
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.DEEPSEEK_API_KEY;
 
   console.log("\n=========================");
   console.log(">>> ENTRÓ A /estado");
@@ -575,7 +583,7 @@ app.post('/api/chat', async (req, res) => {
 
       console.log(">>> Payload enviado:", JSON.stringify(bodyPayload, null, 2));
 
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -595,13 +603,13 @@ app.post('/api/chat', async (req, res) => {
       return res.status(500).json({ error: "Error interno al procesar la query" });
     }
   }
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
     return res.status(500).json({ error: 'API key not configured' });
     }
 
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -631,7 +639,7 @@ app.post('/api/chat', async (req, res) => {
       const cleanResponse = sanitizeModelOutput(responseText);
       res.json({ response: cleanResponse });
     } catch (error) {
-      console.error('Error calling OpenRouter:', error);
+      console.error('Error calling DeepSeek API:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -771,7 +779,7 @@ app.post('/api/chat', async (req, res) => {
 
       const report = generateEstadoReport(typedDoc);
 
-      const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+      const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
       let aiAnalysis: {
         past: string;
         present: string;
@@ -780,7 +788,7 @@ app.post('/api/chat', async (req, res) => {
       } | null = null;
 
       if (!apiKey) {
-        console.warn('OPENROUTER_API_KEY no configurada; se omite análisis narrativo en /api/estado.');
+        console.warn('DEEPSEEK_API_KEY no configurada; se omite análisis narrativo en /api/estado.');
       } else {
         try {
           const messages = [
@@ -800,7 +808,7 @@ ${JSON.stringify(report.metrics, null, 2)}`
             }
           ];
 
-          const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${apiKey}`,
@@ -845,9 +853,9 @@ ${JSON.stringify(report.metrics, null, 2)}`
                 // No es JSON válido, usamos el mensaje por defecto
               }
 
-              console.warn(`[OpenRouter] ${rateLimitMessage} Se devolverá el informe cuantitativo sin análisis narrativo enriquecido.`);
+              console.warn(`[DeepSeek] ${rateLimitMessage} Se devolverá el informe cuantitativo sin análisis narrativo enriquecido.`);
 
-              const guidance = 'Puedes intentarlo nuevamente más tarde o configurar créditos adicionales en OpenRouter para restablecer el acceso.';
+              const guidance = 'Puedes intentarlo nuevamente más tarde o aumentar el plan de DeepSeek para restablecer el acceso.';
               aiAnalysis = {
                 past: 'Análisis narrativo no disponible temporalmente porque se alcanzó el límite de uso del modelo. Consulta la sección cuantitativa para revisar el desempeño histórico.',
                 present: 'No se generó la interpretación automática del estado actual debido al límite del modelo. Revisa las métricas numéricas para el contexto inmediato.',

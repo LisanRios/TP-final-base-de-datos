@@ -92,7 +92,7 @@ export const chatService = {
 
                 if (isRateLimit) {
                     console.warn('Proveedor rate-limited:', errDetail);
-                    throw new Error('El servicio de IA está limitando las solicitudes (429). Intenta de nuevo en unos segundos o configura tu propia clave en https://openrouter.ai/settings/integrations');
+                    throw new Error('El servicio de IA está limitando las solicitudes (429). Intenta de nuevo en unos segundos o configura tu propia clave en https://platform.deepseek.com/api-keys');
                 }
 
                 throw new Error(

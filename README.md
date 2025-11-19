@@ -192,7 +192,7 @@ El sistema analiza automáticamente:
 
 - **Streamlit** para interfaz de chatbot- Fine-tuning o entrenamiento de LLM para generación de informes y respuestas.
 
-- **OpenAI API** / **OpenRouter** para procesamiento de lenguaje natural- Infraestructura: cluster de entrenamiento (GPU/TPU), versionado de modelos (MLflow/DVC), pipeline de MLOps.
+- **DeepSeek API** (compatible OpenAI) para procesamiento de lenguaje natural- Infraestructura: cluster de entrenamiento (GPU/TPU), versionado de modelos (MLflow/DVC), pipeline de MLOps.
 
 - **Pandas** y **NumPy** para análisis de datos- Evaluar pros/contras: mayor control y privacidad vs coste y complejidad operativa.
 
@@ -279,7 +279,7 @@ flowchart LR
 
 2. **Backend (Express + TypeScript)**
    - API REST en `/api/chat` para procesamiento de consultas
-   - Integración con OpenRouter/DeepSeek para IA
+    - Integración directa con DeepSeek para IA
    - Gestión de base de datos MongoDB (planificado)
    - Endpoints para ingesta y análisis de datos
 
@@ -329,13 +329,13 @@ flowchart LR
 **PowerShell (Windows):**
 
 ```powershell
-$env:OPENROUTER_API_KEY = "tu-clave-api-aqui"
+$env:DEEPSEEK_API_KEY = "tu-clave-api-aqui"
 ```
 
 **Archivo `.env`:**
 
 ```powershell
-OPENROUTER_API_KEY=tu-clave-api-aqui
+DEEPSEEK_API_KEY=tu-clave-api-aqui
 PORT=3001
 ```
 
@@ -501,7 +501,7 @@ sequenceDiagram
 - Node.js 16+ y npm
 - Python 3.8+
 - MongoDB (local o remoto)
-- Clave API de OpenRouter/OpenAI
+- Clave API de DeepSeek
 
 ### Instalación
 
@@ -528,7 +528,7 @@ pip install -r requirements.txt
 - Crear archivo `.env` en la raíz y en `backend/`:
 
 ```env
-OPENROUTER_API_KEY=tu-clave-api
+DEEPSEEK_API_KEY=tu-clave-api
 PORT=3001
 MONGODB_URI=mongodb://localhost:27017/tp-final-bd
 ```
@@ -561,7 +561,7 @@ El frontend estará disponible en `http://localhost:3000` y el backend en `http:
 
 - [Mermaid](https://mermaid.live/edit) para visualización de diagramas
 - [Shields.io](https://shields.io/) para badges de tecnologías
-- [OpenRouter](https://openrouter.ai/) para acceso a modelos de IA
+- [DeepSeek Platform](https://platform.deepseek.com/) para acceso a modelos de IA
 - [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) para base de datos en la nube
 - [Notion](https://www.notion.so/) para gestión de proyecto
 
@@ -569,7 +569,7 @@ El frontend estará disponible en `http://localhost:3000` y el backend en `http:
 
 - **v1.0.0**: Versión inicial con chatbot funcional y estructura base del proyecto
   - Frontend React con TypeScript
-  - Backend Express con integración a OpenRouter
+  - Backend Express con integración a DeepSeek
   - Módulo ML con Streamlit
   - Estructura de base de datos NoSQL planificada
   - Interfaz de chat con historial de mensajes

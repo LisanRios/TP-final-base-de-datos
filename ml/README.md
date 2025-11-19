@@ -41,11 +41,8 @@ Este proyecto incluye un asistente de prueba basado en IA para testing y demostr
 
 - Interfaz web simple para chatear con la IA
 - Historial de conversación persistente durante la sesión
-- Modelo DeepSeek v3.1 (gratuito) vía OpenRouter
+- Modelo DeepSeek V3.2 vía API oficial
 
 ### Notas de Seguridad
 
-⚠️ **Importante**: La API key está hardcodeada en el código. Para producción:
-
-- Usa variables de entorno: `OPENAI_API_KEY`
-- Nunca commits API keys al repositorio
+⚠️ **Importante**: Configura siempre la variable de entorno `DEEPSEEK_API_KEY` antes de ejecutar el asistente y evita compartir tu clave pública.
