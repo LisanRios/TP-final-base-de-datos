@@ -25,7 +25,8 @@ export class GraphAdapterService {
             close: Number(h.raw?.last_close),
             volume: Number(h.raw?.volume),
         }))
-        .filter(h => h.close > 0 && h.date);
+       // .filter(h => h.close > 0 && h.date);
+       .filter(h => h.date && !isNaN(h.close) && h.close !== 0);
     }
 
     // Crea TODOS los datasets que pide AnalysisEntity
