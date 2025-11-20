@@ -1,8 +1,19 @@
 export const normalizeLineData = (data: any[]) => {
-    return data.map((item) => ({
-        date: item.date,
-        price: item.price ?? item.value ?? item.amount ?? 0,
-    }));
+    return data.map((item) => {
+        const normalized: Record<string, unknown> = {
+            date: item.date,
+            price: item.price ?? item.value ?? item.amount ?? 0,
+        };
+
+        if (typeof item.sma50 === "number") {
+            normalized.sma50 = item.sma50;
+        }
+        if (typeof item.sma200 === "number") {
+            normalized.sma200 = item.sma200;
+        }
+
+        return normalized;
+    });
 };
 
 export const normalizeBarData = (data: any[]) => {

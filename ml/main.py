@@ -6,18 +6,18 @@ import streamlit as st
 import os
 from openai import OpenAI
 
-# Configurar cliente OpenAI / OpenRouter
+# Configurar cliente para DeepSeek (compatible con OpenAI SDK)
 # La API key NO debe estar hardcodeada en el código. Lee la clave desde la variable de entorno
-# OPENROUTER_API_KEY. Para desarrollo en Windows PowerShell:
-#   $env:OPENROUTER_API_KEY = "sk-or-REPLACE_WITH_YOUR_KEY"
+# DEEPSEEK_API_KEY. Para desarrollo en Windows PowerShell:
+#   $env:DEEPSEEK_API_KEY = "sk-REPLACE_WITH_YOUR_KEY"
 # Para una sesión persistente usa un archivo .env (no commitearlo) o configura el entorno del servicio.
-api_key = os.getenv("OPENROUTER_API_KEY")
+api_key = os.getenv("DEEPSEEK_API_KEY")
 if not api_key:
-    st.error("Por favor, configura la variable de entorno OPENROUTER_API_KEY con tu clave API de OpenRouter.")
+    st.error("Por favor, configura la variable de entorno DEEPSEEK_API_KEY con tu clave API de DeepSeek.")
     st.stop()
 
 client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
+    base_url=os.getenv("DEEPSEEK_API_BASE_URL", "https://api.deepseek.com/v1"),
     api_key=api_key,
 )
 
@@ -48,7 +48,7 @@ if st.button("Enviar"):
 
         # Obtener respuesta de la AI
         completion = client.chat.completions.create(
-            model="deepseek/deepseek-chat-v3.1:free",
+            model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
             messages=st.session_state.messages
         )
 
@@ -61,4 +61,4 @@ if st.button("Enviar"):
         st.rerun()
 
 # Nota de seguridad
-st.info("La aplicación usa la variable de entorno OPENROUTER_API_KEY para la autenticación.")
+st.info("La aplicación usa la variable de entorno DEEPSEEK_API_KEY para la autenticación.")
