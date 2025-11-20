@@ -26,15 +26,6 @@
 Trabajo práctico final de Base de Datos que combina scraping financiero, almacenamiento NoSQL y modelos de lenguaje para asistir a analistas. El usuario conversa con un asistente que puede consultar historiales, calcular indicadores técnicos, pedir reportes narrativos al LLM DeepSeek y mostrar gráficos listos para imprimir o exportar.
 
 ## Casos de uso destacados
-=======
-[![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
-[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-![AI](https://img.shields.io/badge/AI-412991?style=for-the-badge&logo=openai&logoColor=white)
-
 
 - Analizar una compañía con `/estado <ticker>` y obtener series OHLC, medias móviles y narrativa IA.
 - Ejecutar `/analiza <compañía>` para disparar scraping desde Investing.com y persistir el histórico más reciente.
