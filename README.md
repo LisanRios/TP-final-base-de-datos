@@ -1,109 +1,261 @@
-# TP Final Base de Datos.
+# TP Final Base de Datos · Plataforma de Análisis Financiero con IA
 
-# Resumen
+[![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Node.js](https://img.shields.io/badge/Node.js-3C873A?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/) [![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/) [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/) [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/) ![DeepSeek](https://img.shields.io/badge/LLM-DeepSeek-purple?style=for-the-badge)
 
-*Una pagina web que recibe preguntas de contexto empresarial/financiera y devuelve: series temporales, indicadores técnicos y fundamentales, análisis estadístico y una recomendación generada por IA. El sistema combina ingestión de datos (APIs / scraping), almacenamiento flexible (NoSQL preferido), procesamiento estadístico/ML y una capa de personalización basada en vectores (historial de la conversación / chat).*
+> Plataforma full-stack (React + Node + MongoDB + ML en Python) capaz de responder en lenguaje natural, ejecutar scraping financiero avanzado, generar reportes cuantitativos y exportar conversaciones completas.
 
-# Objetivos
+## Tabla de contenidos
 
-- Entregar respuestas interpretables y accionables sobre instrumentos financieros.
-- Soportar datos heterogéneos (acciones, criptos, FX, startups).
-- Permitir extensibilidad: nuevos parámetros, nuevas fuentes y nuevos modelos.
+- [Vision general](#vision-general)
+- [Casos de uso destacados](#casos-de-uso-destacados)
+- [Caracteristicas clave](#caracteristicas-clave)
+- [Arquitectura](#arquitectura)
+- [Estructura del repositorio](#estructura-del-repositorio)
+- [Stack tecnologico](#stack-tecnologico)
+- [Configuracion rapida](#configuracion-rapida)
+- [Variables de entorno](#variables-de-entorno)
+- [Scripts por modulo](#scripts-por-modulo)
+- [API REST disponible](#api-rest-disponible)
+- [Comandos disponibles en el chat](#comandos-disponibles-en-el-chat)
+- [Flujo de generacion de insights](#flujo-de-generacion-de-insights)
+- [Testing y calidad](#testing-y-calidad)
+- [Roadmap inmediato](#roadmap-inmediato)
 
-# Alcance
+## Vision general
 
-- Inputs: consultas en lenguaje natural (ej.: "¿Cuál es la mejor empresa para invertir ahora?").
-- Outputs: informe estructurado con datos en tiempo real/históricos, indicadores técnicos, métricas de riesgo, y recomendación con justificación.
-- Integraciones previstas: APIs de mercado, web scraping como fallback, motores de embeddings, y (opcional) integración Python + ML (MATE 3 — confirmar con el equipo).
+Trabajo práctico final de Base de Datos que combina scraping financiero, almacenamiento NoSQL y modelos de lenguaje para asistir a analistas. El usuario conversa con un asistente que puede consultar historiales, calcular indicadores técnicos, pedir reportes narrativos al LLM DeepSeek y mostrar gráficos listos para imprimir o exportar.
 
-# Flujo de funcionamiento (alto nivel)
+## Casos de uso destacados
+=======
+[![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+![AI](https://img.shields.io/badge/AI-412991?style=for-the-badge&logo=openai&logoColor=white)
 
-1. Recepción del input (chat / query API).
-2. Preprocesamiento / vectorización de la consulta (API#1) para detectar intención y entidades.
-3. Búsqueda en la BD local (si existe historial/datos ya ingestados).
-4. Si faltan datos → pipeline de ingestión: API externa → store / o web scraping → store.
-5. Cálculos: estadísticas, indicadores técnicos, modelos de ML/serie temporal.
-6. Generación de informe (plantilla + explicación) por API#2 (puede ser un LLM controlador).
-7. Personalización: re-rank o adaptar lenguaje según perfil del usuario (vectores / historial).
-8. Entrega al usuario y almacenamiento del intercambio para aprendizaje futuro.
 
-# Ejemplo de ejecución (paso a paso)
+- Analizar una compañía con `/estado <ticker>` y obtener series OHLC, medias móviles y narrativa IA.
+- Ejecutar `/analiza <compañía>` para disparar scraping desde Investing.com y persistir el histórico más reciente.
+- Pedir comparaciones rápidas (`/compara A y B`), gráficos específicos (`/graficos <compañía>`) o ayuda (`/help`).
+- Exportar cualquier conversación a PDF con tablas, métricas y gráficos embebidos para compartir con el equipo.
+- Cargar el módulo `ml/` para experimentar con modelos Prophet/LSTM y reportes en Streamlit.
 
-Input: ¿Cuál es la mejor empresa para invertir **ahora**?
+## Caracteristicas clave
 
-- A) Vectorizamos la pregunta → detectamos: horizonte ("ahora" -> corto plazo), activo: empresa (si no indicada, pedir aclaración o usar top picks).
-- B) Consultamos BD: precios, volumen, indicadores técnicos, noticias relevantes.
-- C) Si falta info: obtenemos datos externos y los persistimos.
-- D) Ejecutamos cálculos (RSI, MACD, medias móviles, volatilidad, VaR simple, correlaciones).
-- E) LLM monta el informe (resumen numérico + gráfico + conclusión y nivel de confianza).
+**Chat IA contextual** – `frontend/src/components/Chat.tsx` consume `chatService` para enviar prompts al backend y formatea las respuestas con Markdown, indicadores y alertas de rate limiting.
 
-# Diseño de almacenamiento
+**Scraping resiliente** – `backend/src/app.ts` usa Puppeteer + Stealth Plugin con fallback opcional a Selenium para lidiar con Investing.com. Extrae tanto HTML como payload JSON (`__NEXT_DATA__`).
 
-**Recomendación primaria: NoSQL + motor de vectores** (por flexibilidad y velocidad para documento/serie y metadatos).
+**Persistencia flexible** – `backend/src/db.ts` conecta a MongoDB para almacenar análisis, historiales y resultados de scraping. Incluye normalización y vectorización (HuggingFace + fallback local) para búsquedas semánticas.
 
-**Esquema sugerido (NoSQL — “”ORIENTATIVO””):**
+**Visualizaciones listas** – Componentes en `frontend/src/components/charts` generan line, area, bar, pie y candlestick charts (Recharts) a partir de la respuesta del backend.
 
-- id
-- tipo (accion/crypto/fx/startup/etc.)
-- fuente (link/s)
-- series (timestamp, open, high, low, close, volume)
-- indicadores (objeto JSON con RSI, MACD, MA, ATR, etc.)
-- pivot_points
-- technical_analysis.summary
-- metadata (sector, país, ticker, ISIN)
-- embeddings (vector para búsqueda semántica)
-- ingesta.timestamp
-- quality_flags (missing_data, source_reliability)
+**Reportes y exportación** – `frontend/src/components/ExportChatButton.tsx` utiliza `html2pdf.js` para convertir el chat completo en PDF con sello temporal y metadatos.
 
-# Vectorización y personalización
+**Módulo ML** – `ml/main.py` + Streamlit ofrecen un asistente alternativo y plantillas para entrenar modelos de series temporales o generar informes PDF/XLSX mediante Python.
 
-- Mantener un motor de embeddings (FAISS / Milvus / Pinecone) con representaciones de:
-    - preguntas dentro de cada chat/conversación (snapshot del contexto)
-    - documentos de análisis
-    - snapshots de conversaciones relevantes (no perfiles persistentes)
-- Importante: los embeddings **se indexan por conversación/chat**, no por perfil de usuario. Cada hilo tendrá su propio historial semántico y contexto, evitando mezclar intereses entre distintas conversaciones.
-- Re-rankear respuestas según similitud de embedding entre la **consulta y el estado actual del chat** para adaptar la respuesta al contexto conversacional.
+## Arquitectura
 
-# Generación de reportes y gráficos
+```mermaid
+flowchart LR
+  User((Usuario))
+  Frontend["Frontend React\n(./frontend)"]
+  Backend["API Express\n(./backend)"]
+  ML["Servicio ML\n(./ml)"]
+  Mongo[(MongoDB)]
+  Sources["APIs publicas\n+ Investing.com"]
+  Reports["Dashboards y Reportes\n(./dashboards, ./reports)"]
 
-- El sistema debe poder generar:
-    - Gráficos interactivos y estáticos (series de precio, indicadores, correlaciones).
-    - Reportes descargables en PDF y XLSX con tablas, gráficos y notas explicativas.
-- Tecnologías sugeridas: matplotlib / plotly para gráficos, pandas / openpyxl / xlsxwriter para XLSX, ReportLab / wkhtmltopdf / WeasyPrint para PDFs.
-- Flujo: generar la visualización en el backend, incrustar en el informe, exportar a PDF/XLSX y ofrecer descarga o envío por email.
-- Guardar una copia del reporte en la BD (metadatos: versión del modelo, fecha, parámetros usados) para trazabilidad.
+  User -->|chat y dashboards| Frontend
+  Frontend -->|REST /api| Backend
+  Backend -->|consultas e ingestiones| Mongo
+  Backend -->|scraping y ETL| Sources
+  Backend -->|/estado & embeddings| ML
+  ML -->|insights y metricas| Backend
+  Backend -->|JSON| Frontend
+  Frontend -->|exportaciones PDF| Reports
+```
 
-# Consideraciones ML / IA
+- **Frontend**: SPA en React + TypeScript con Bootstrap, chat persistente y componentes para métricas (`FinancialIndicatorsCard.tsx`).
+- **Backend**: Express + TypeScript expone `/api/chat`, `/api/estado` y endpoints de scraping; integra DeepSeek, HuggingFace y Mongo.
+- **ML/Streamlit**: módulo Python independiente para experimentos, reportes avanzados y pruebas rápidas de prompts.
+- **Dashboards & Reports**: guías para notebooks/Streamlit adicionales y reportes descargables.
 
-- Modelos de series temporales: ARIMA/Prophet/LSTM/Transformers según horizonte y calidad de datos.
-- Modelos explicables y límites claros: siempre proveer la razón y grado de confianza de la recomendación.
-- Integración con Python + MATE 3: confirmar compatibilidad, recursos (GPU/CPU), y cómo desplegar (batch vs real‑time).
+## UML
 
-# Trazabilidad y auditoría
+```mermaid
+classDiagram
+  class ReactChat {
+    +renderMensajes()
+    +pushCharts()
+    +exportPDF()
+  }
+  class ChatService {
+    +sendMessage(query)
+    +scrapeCompany(ticker)
+    +getEstado(company)
+  }
+  class BackendAPI {
+    +POST /api/chat
+    +GET /api/estado
+    +GET /api/scrape/*
+  }
+  class AnalysisCore {
+    +calcularIndicadores()
+    +generarNarrativas()
+    +normalizarSerie()
+  }
+  class MongoDatabase {
+    +historicalData
+    +analysisResults
+  }
+  class MLService {
+    +DeepSeekClient
+    +StreamlitReports
+  }
 
-- Mantener ingestion_logs y decision_logs (qué datos usó la IA para cada recomendación).
-- Guardar versión de modelo y parámetros usados en cada informe.
+  ReactChat --> ChatService : usa
+  ChatService --> BackendAPI : llama
+  BackendAPI --> AnalysisCore : delega
+  AnalysisCore --> MongoDatabase : lee/escribe
+  BackendAPI --> MongoDatabase : CRUD
+  BackendAPI --> MLService : solicita IA
+  MLService --> BackendAPI : devuelve insights
+```
 
-# Requerimientos no funcionales
+El diagrama resume cómo el chat en React coordina solicitudes al `chatService`, el cual consume la API Express. Esta API central distribuye responsabilidades entre el núcleo de análisis, MongoDB y el módulo de IA/ML para entregar respuestas enriquecidas.
 
-- Latencia objetivo para consulta simple: < 2s (si datos en cache / BD local).
-- Jobs ETL diarios/horarios para sincronizar fuentes externas.
-- Monitorización de calidad de datos y alertas (missing data, drift).
+## Estructura del repositorio
 
-# Tecnologías sugeridas (orientativo)
+```text
+.
+├── backend/              # API Express + scraping + Mongo
+│   ├── src/app.ts        # Rutas REST y lógica de IA
+│   ├── src/analysis.ts   # Generador de reportes cuantitativos
+│   └── src/db.ts         # Conexión y helpers de MongoDB
+├── frontend/             # React + TS + Recharts + html2pdf
+│   ├── src/components/   # Chat, indicadores y charts
+│   └── src/services/     # chatService, graphService, mocks
+├── dashboards/           # Recursos para tableros adicionales
+├── reports/              # Plantillas y documentación de reportes
+├── ml/                   # Streamlit + modelos Python
+├── package.json          # Dependencias compartidas (html2pdf/react-markdown)
+└── README.md             # Este documento
+```
 
-- BD NoSQL: MongoDB.
-- Vector DB: FAISS / Milvus / Pinecone (a ver).
-- Entorno: node.js (react, typescript).
-- ML: Python (scikit‑learn, statsmodels, pytorch/TF si hay modelos deep learning).
-- Frontend: microservicio REST/GraphQL, dashboard con gráficos (Plotly, Recharts, etc.).
-- Deploy: Vercel / firebase / hostinger
+## Stack tecnologico
 
-# OPCIONALES
+| Capa | Tecnologías | Archivos clave |
+| --- | --- | --- |
+| UI & Reporting | React 18, TypeScript, Bootstrap 5, Recharts, html2pdf.js | `frontend/src/components/*`, `frontend/src/App.tsx` |
+| API & Scraping | Node 18, Express, Puppeteer Extra + Stealth, Selenium (fallback), Cheerio, CORS | `backend/src/app.ts` |
+| Datos | MongoDB, Mongoose, Aggregations, vectorización con HuggingFace o fallback local | `backend/src/db.ts`, `backend/src/analysis.ts` |
+| IA / LLM | DeepSeek Chat Completions, HuggingFace Inference, embeddings custom | `backend/src/app.ts`, `ml/main.py` |
+| Ciencia de datos | Python 3.11, pandas, numpy, scikit-learn, statsmodels, Prophet, Streamlit | `ml/requirements.txt`, `ml/main.py` |
 
-- **Entrenar una red neuronal propia**: construir modelos de series temporales (Transformers / LSTM) para predicción interna y no depender completamente de APIs externas.
-- **Entrenar/desplegar un modelo de lenguaje propio**: investigar fine‑tuning o entrenamiento desde cero de un LLM para generar informes y respuestas sin depender de servicios externos. Esto requiere datasets, infraestructura y controles de seguridad.
-- **Infraestructura propuesta**: cluster de entrenamiento (GPUs/TPUs), sistema de versiones de modelos (MLflow / DVC), pipeline de MLOps para despliegue y monitorización.
-- **Pros/Contras**: mayor control y privacidad vs coste y complejidad operativa. Definir roadmap y presupuesto antes de comprometer recursos.
+## Configuracion rapida
 
-[tablero](https://www.notion.so/263aabf0ff7280dc8217c381c8a95c7b?pvs=21)
+### Prerrequisitos
+
+- Node.js 18+ y npm.
+- Python 3.10+ con `pip` (para `ml/`).
+- MongoDB Atlas o instancia local accesible desde el backend.
+- Google Chrome + ChromeDriver si se habilita el fallback Selenium (`SCRAPER_ENABLE_SELENIUM=true`).
+
+### Instalación
+
+```powershell
+git clone https://github.com/<org>/TP-final-base-de-datos.git
+cd TP-final-base-de-datos
+
+# Backend
+cd backend
+npm install
+
+# Frontend
+cd ..\frontend
+npm install
+
+# Módulo ML
+cd ..\ml
+pip install -r requirements.txt
+```
+
+### Ejecución local
+
+1. **MongoDB**: asegurarse de que la URI configurada sea accesible.
+2. **Backend**: `cd backend && npm run dev` (puerto 3001 por defecto).
+3. **Frontend**: `cd frontend && npm start` (Create React App en 3000 con proxy al backend).
+4. **Streamlit** (opcional): `cd ml && streamlit run main.py`.
+
+## Variables de entorno
+
+| Módulo | Variable | Descripción |
+| --- | --- | --- |
+| backend | `PORT` | Puerto HTTP del API Express (por defecto 3001). |
+| backend | `MONGODB_URI` | Cadena de conexión MongoDB; usada por `connectToDatabase`. |
+| backend | `DEEPSEEK_API_KEY` | Clave para Chat Completions y narrativas `/estado`. |
+| backend | `DEEPSEEK_MODEL` | Nombre del modelo (default `deepseek-chat`). |
+| backend | `DEEPSEEK_API_BASE_URL` | URL base para la API DeepSeek (permite proxys/self-hosted). |
+| backend | `INVESTING_COOKIE` | Cookie válida para incrementar el éxito del scraping. |
+| backend | `SCRAPER_ENABLE_SELENIUM` | `true` para permitir fallback Selenium. |
+| backend | `HF_TOKEN` | Token de HuggingFace para embeddings; si falta, se usa el generador local. |
+| frontend | `REACT_APP_API_URL` (opcional) | Cuando se construye para producción, se puede apuntar a un backend remoto. En dev usa `http://localhost:3001`. |
+| ml | `DEEPSEEK_API_KEY` | Reutiliza la misma clave para el asistente Streamlit. |
+
+## Scripts por modulo
+
+| Directorio | Comando | Descripción |
+| --- | --- | --- |
+| backend | `npm run dev` | Levanta Express con `nodemon` y recarga en caliente. |
+| backend | `npm start` | Ejecuta `ts-node src/app.ts` en modo producción. |
+| frontend | `npm start` o `npm run dev` | Inicia Create React App (puerto 3000). |
+| frontend | `npm run build` | Genera build estático en `frontend/build`. |
+| ml | `streamlit run main.py` | Inicia el asistente IA experimental. |
+| raíz | `npm install` | Instala dependencias compartidas (`html2pdf`, `react-markdown`, etc.). |
+
+## API REST disponible
+
+| Método y ruta | Descripción | Parámetros relevantes |
+| --- | --- | --- |
+| `GET /` | Ping básico para monitoreo. | — |
+| `POST /api/chat` | Enruta la consulta del usuario al modelo LLM y devuelve texto enriquecido. | `query` (string) |
+| `GET /api/estado` | Genera el informe cuantitativo completo para una compañía, incluyendo timeseries y narrativa IA. | `company` (string) |
+| `GET /api/scrape/company` | Ejecuta scraping puntual de una compañía en Investing.com (payload JSON procesado). | `company` |
+| `GET /api/scrape/indexes` | Devuelve índices principales recopilados por el scraper. | — |
+| `GET /api/scrape/json` | Retorna el `__NEXT_DATA__` crudo cuando se necesita depurar. | `url` |
+| `GET /api/scrape/html` | Descarga el HTML completo capturado por Puppeteer/Selenium. | `url` |
+
+## Comandos disponibles en el chat
+
+| Comando | Propósito |
+| --- | --- |
+| `/analiza <compañía>` | Dispara el scraping, normaliza los datos y guarda el análisis en Mongo. |
+| `/estado <compañía>` | Genera reporte con OHLC, medias móviles, retornos, drawdown y análisis IA. |
+| `/graficos <compañía>` | Devuelve todas las visualizaciones disponibles (precio, velas, retornos, drawdown, volumen). |
+| `/compara <compañía A> y <compañía B>` | Contrasta métricas cuantitativas recientes entre dos emisores. |
+| `/help` | Lista actualizada de comandos soportados y ejemplos. |
+
+## Flujo de generacion de insights
+
+1. El usuario envía una consulta desde React (`chatService.sendMessage`).
+2. Express valida el prompt, atiende comandos especiales y consulta Mongo para datos previos.
+3. Si falta información, el backend ejecuta scraping (Puppeteer/Selenium) o consulta APIs externas.
+4. Los datos se limpian, se calculan indicadores (RSI, MACD, medias móviles, drawdowns) y se vectoriza el texto para personalizar la respuesta.
+5. DeepSeek genera narrativa adicional cuando es necesario (`/estado`).
+6. El frontend renderiza texto + gráficos y permite exportar todo a PDF.
+
+## Testing y calidad
+
+- `frontend`: incluye `vitest` + `jsdom` (ver `frontend/src/utils/dataNormalizer.test.ts`). Ejecutar `npm run test` desde `frontend/` para validar normalizadores y utilidades.
+- `backend`: recomendado ejecutar `npm run dev` junto a `tsc --noEmit` para asegurar tipos estrictos.
+- `ml`: se sugiere crear entornos virtuales (`python -m venv .venv`) y congelar versiones con `pip freeze` antes de desplegar.
+
+## Roadmap inmediato
+
+- Añadir autenticación y gestión de sesiones para conversaciones persistentes multiusuario.
+- Completar dashboards en `dashboards/` con datos reales provenientes del backend.
+- Automatizar jobs ETL y almacenamiento de `ingestion_logs` para trazabilidad.
+- Incorporar pruebas end-to-end (Playwright) para los comandos del chat y exportación PDF.
