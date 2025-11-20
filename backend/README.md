@@ -8,6 +8,16 @@ Node.js + TypeScript
 - Procesamiento estadístico y generación de informes.
 - Personalización por contexto conversacional.
 
+## Variables de entorno
+
+| Variable            | Obligatoria | Descripción |
+| ------------------- | ----------- | ----------- |
+| `MONGODB_URI`       | Sí          | Cadena de conexión a MongoDB utilizada por `src/db.ts`. |
+| `DEEPSEEK_API_KEY` | Sí          | API Key para consumir el endpoint de DeepSeek (`/api/chat`). |
+| `HF_TOKEN`          | Opcional    | Token de Hugging Face utilizado para generar embeddings de texto más precisos. Si no se establece o falla la autenticación, el backend utilizará automáticamente un vectorizador local como respaldo (lograrás menos precisión pero sin errores 500). |
+
+Coloca estas variables en `backend/.env`. El archivo `.env` de ejemplo **no debe** subirse al control de versiones con credenciales reales.
+
 ## Segun la libreria oficial de mongo la conexion a la bd es asi en python
 
 ```python
